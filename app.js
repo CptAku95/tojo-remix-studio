@@ -1,8 +1,8 @@
 import {encodeWav} from "./wav.js";
-import {openMDX,splitMDX} from "./mdx-direct.js?v=013";
+import {openMDX,splitMDX} from "./mdx-direct.js?v=014";
 const $=id=>document.getElementById(id);
-const controls=["file","model","modelSource","modelFile","backend","scope","start","run","probe"];
-let modelRevision=0;
+const controls=["file","model","modelSource","modelFile","wasmFile","backend","scope","start","run","probe"];
+let modelRevision=0,wasmRevision=0;
 let input=null, originalUrl=null, duration=0, output=[], baseName="track", busy=false, separator=null, separatorKey="";
 const LOGKEY="tojo-diagnostic-v011", RUNKEY="tojo-active-stage";
 function store(k,v){try{localStorage.setItem(k,v)}catch{}}
@@ -24,13 +24,14 @@ async function releaseEngine(){const old=separator;separator=null;separatorKey="
 $("model").onchange=updateModelUI;$("modelSource").onchange=updateModelUI;
 $("modelFile").onchange=()=>{const f=$("modelFile").files[0];modelRevision++;if(f){const matched=Object.keys(modelURLs).find(n=>(n+".onnx").toLowerCase()===f.name.toLowerCase());if(matched){$("model").value=matched;updateModelUI();}log("Lokalny model: "+f.name+" ("+(f.size/1048576).toFixed(1)+" MiB)");}};
 if(navigator.userAgent.includes("Working Copy")){$("modelSource").value="file";updateModelUI();}
+$("wasmFile").onchange=()=>{wasmRevision++;const f=$("wasmFile").files[0];if(f)log("Lokalny runtime: "+f.name+" ("+(f.size/1048576).toFixed(2)+" MiB)");};
 $("scope").onchange=()=>{$("startWrap").hidden=$("scope").value==="full";};
 $("file").onchange=()=>{if(busy)return;const f=$("file").files[0];if(!f)return;clearResults();if(originalUrl)URL.revokeObjectURL(originalUrl);input=f;duration=0;originalUrl=URL.createObjectURL(f);$("original").src=originalUrl;$("original").hidden=false;$("info").textContent=f.name+" · "+(f.size/1048576).toFixed(1)+" MB";$("start").value=0;$("run").disabled=false;status("Plik wybrany.");};
 $("original").onloadedmetadata=()=>{if(Number.isFinite($("original").duration)){duration=$("original").duration;$("start").max=Math.max(0,Math.floor(duration-.1));$("info").textContent=input.name+" · "+duration.toFixed(1)+" s · "+(input.size/1048576).toFixed(1)+" MB";}};
 for(const id of ["original","vocals","instrumental"])$(id).addEventListener("play",()=>{for(const other of ["original","vocals","instrumental"])if(other!==id)$(other).pause();});
 async function getSeparator(){
  const name=$("model").value,source=$("modelSource").value;
- const key=name+"|"+$("backend").value+"|"+source+"|"+modelRevision;
+ const key=name+"|"+$("backend").value+"|"+source+"|"+modelRevision+"|"+wasmRevision;
  if(separator&&key===separatorKey)return separator;
  await releaseEngine();
  const readBytes=async()=>{
@@ -48,7 +49,7 @@ async function getSeparator(){
   return new Uint8Array(await r.arrayBuffer());
  };
  status("Inicjalizacja bezpośredniego silnika ONNX…");
- try{separator=await openMDX(name,$("backend").value,readBytes,log,mark);}
+ try{separator=await openMDX(name,$("backend").value,readBytes,log,mark,$("wasmFile").files[0]);}
  catch(e){throw Error("Etap "+read(RUNKEY)+": "+errorText(e));}
  separatorKey=key;return separator;
 }
@@ -80,4 +81,4 @@ $("run").onclick=async()=>{
  finally{mark("");setBusy(false);}
 };
 $("copy").onclick=async()=>{try{await navigator.clipboard.writeText($("log").textContent);$("copy").textContent="Skopiowano";}catch{const r=document.createRange();r.selectNodeContents($("log"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("copy").textContent="Zaznaczono log";}};
-log("Tojo v0.1.3 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
+log("Tojo v0.1.4 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
