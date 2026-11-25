@@ -32,7 +32,7 @@ async function getWasm(filename,file,log){
 }
 export async function openMDX(name,backend,readBytes,log,mark,wasmFile){
  const cfg=CONFIG[name];if(!cfg)throw Error("Nieznany model");
- const gpu=backend==="gpu"||backend==="auto"&&!!navigator.gpu;
+ const gpu=backend==="gpu"||backend==="gpu-opt"||backend==="auto"&&!!navigator.gpu;
  mark("import ORT");log("ORT 1.22.0: "+(gpu?"WebGPU build":"WASM-only build"));
  const bundle=gpu?"ort.webgpu.bundle.min.mjs":"ort.wasm.bundle.min.mjs";
  let ort;try{ort=await import(CDN+bundle);}catch(e){log("Import CDN nieudany: "+e.message);ort=await import(CDN_LIST[0]+bundle);}
@@ -49,7 +49,10 @@ export async function openMDX(name,backend,readBytes,log,mark,wasmFile){
  if(!(bytes instanceof Uint8Array)||bytes.byteLength<1e6)throw Error("Niepoprawny rozmiar ONNX");
  log("ONNX: "+bytes.byteLength+" B; nagłówek "+Array.from(bytes.subarray(0,8)).map(x=>x.toString(16).padStart(2,"0")).join(" "));
  mark("ORT InferenceSession.create");log("Tworzenie sesji ONNX z Uint8Array…");
- const session=await ort.InferenceSession.create(bytes,{executionProviders:gpu?(backend==="auto"?["webgpu","wasm"]:["webgpu"]):["wasm"],graphOptimizationLevel:"basic"});
+ const graphOptimizationLevel=backend==="gpu-opt"?"all":"basic";
+ log("Backend "+backend+"; graphOptimizationLevel="+graphOptimizationLevel);
+ const session=await ort.InferenceSession.create(bytes,{executionProviders:gpu?(backend==="auto"?["webgpu","wasm"]:["webgpu"]):["wasm"],graphOptimizationLevel});
+ if(gpu){try{ort.env.webgpu.device?.lost.then(info=>log("GPU device lost: "+info.reason+" "+info.message));}catch{}}
  log("Sesja ONNX gotowa. Wejścia: "+session.inputNames.join(", ")+"; wyjścia: "+session.outputNames.join(", "));
  return {session,ort,cfg};
 }
@@ -67,7 +70,7 @@ export async function splitMDX(engine,channels,log,mark,progress){
  const sum=[new Float32Array(len),new Float32Array(len)],weight=new Float32Array(len);
  const window=new Float32Array(SIZE);for(let i=0;i<SIZE;i++)window[i]=.5-.5*Math.cos(2*Math.PI*(i+.5)/SIZE);
  const starts=[];for(let i=-trim;i<len;i+=stride)starts.push(i);
- let calls=0,done=0,skipped=0;
+ let calls=0,done=0,skipped=0,runMs=0;const splitStart=performance.now();
  for(const start of starts){
    mark("FFT / ONNX chunk "+(done+1)+"/"+starts.length);
    const block=new Float32Array(2*SIZE);
@@ -83,7 +86,7 @@ export async function splitMDX(engine,channels,log,mark,progress){
    const tensor=new ort.Tensor("float32",spec,[1,4,cfg.f,FRAMES]);
    let outputs;
    try{
-    mark("ONNX run "+(calls+1));outputs=await session.run({[session.inputNames[0]]:tensor});
+    mark("ONNX run "+(calls+1));const runStart=performance.now();outputs=await session.run({[session.inputNames[0]]:tensor});const elapsed=performance.now()-runStart;runMs+=elapsed;log("BENCH session.run "+(calls+1)+": "+(elapsed/1000).toFixed(3)+" s");
     const prediction=outputs[session.outputNames[0]],p=prediction?.data;
     if(!p||p.length!==spec.length)throw Error("Nieoczekiwany rozmiar wyjścia ONNX");
     let total=0,diff=0,energy=0;
@@ -97,6 +100,6 @@ export async function splitMDX(engine,channels,log,mark,progress){
  }
  const primary=sum,secondary=[new Float32Array(len),new Float32Array(len)];
  for(let c=0;c<2;c++)for(let i=0;i<len;i++){primary[c][i]=primary[c][i]/Math.max(1e-8,weight[i])*peak*cfg.gain;secondary[c][i]=channels[c][i]-primary[c][i];}
- log("Rzeczywiste wywołania session.run: "+calls+"; pominięte puste fragmenty: "+skipped);
+ log("Rzeczywiste wywołania session.run: "+calls+"; pominięte puste fragmenty: "+skipped);log("BENCH model "+(runMs/1000).toFixed(3)+" s / cała separacja "+((performance.now()-splitStart)/1000).toFixed(3)+" s / audio "+(len/44100).toFixed(3)+" s");
  return cfg.primary==="vocals"?[primary,secondary]:[secondary,primary];
 }
