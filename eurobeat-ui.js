@@ -1,14 +1,14 @@
 import {encodeWav} from "./wav.js";
 import {shareWav} from "./share-wav.js";
-import {SR,analyze,parseChords,stretch,backing,mix} from "./eurobeat-dsp.js?v=020";
+import {SR,analyze,parseChords,stretch,arrangement,backing,mix} from "./eurobeat-dsp.js?v=022";
 const $=id=>document.getElementById(id);
-const ids=["ebVocal","ebReference","ebAnalyze","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebVGain","ebIGain","ebRender"];
+const ids=["ebVocal","ebReference","ebAnalyze","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebRender"];
 let vocal=null,reference=null,refOffset=0,vocalName="track",busy=false,urls=[],blobs=[],vocalURL=null;
 function say(s){$("ebStatus").textContent=s;}
 function enable(){for(const id of ids)$(id).disabled=busy;$("ebAnalyze").disabled=busy||!vocal;$("ebRender").disabled=busy||!vocal;}
 function progress(p){$("ebProgress").value=p;}
 function lock(v){busy=v;$("ebProgress").hidden=!v;if(v)progress(0);enable();}
-function clear(){for(const id of ["ebMix","ebBacking","ebStretched"]){$(id).pause();$(id).removeAttribute("src");$(id).load();}for(const u of urls)URL.revokeObjectURL(u);urls=[];blobs=[];$("ebSaveStatus").textContent="";$("ebOutput").hidden=true;}
+function clear(){for(const id of ["ebMix","ebBacking","ebStretched"]){$(id).pause();$(id).removeAttribute("src");$(id).load();}for(const u of urls)URL.revokeObjectURL(u);urls=[];blobs=[];$("ebSaveStatus").textContent="";$("ebOutput").hidden=true;$("ebArrangement").textContent="";}
 async function decode(blob){const ctx=new OfflineAudioContext(2,1,SR),b=await ctx.decodeAudioData(await blob.arrayBuffer());const left=b.getChannelData(0),right=b.getChannelData(Math.min(1,b.numberOfChannels-1));return [left,right];}
 function asWav(ch){return encodeWav({numberOfChannels:2,sampleRate:SR,length:ch[0].length,duration:ch[0].length/SR,getChannelData:i=>ch[i]});}
 function resetAnalysis(){ $("ebAnalysis").textContent="Brak analizy. Możesz wpisać tempo i akordy ręcznie."; $("ebOriginalBpm").value=120;$("ebStart").value=0;$("ebKey").value="";$("ebChords").value="Am F C G";}
@@ -41,11 +41,13 @@ function num(id,min,max){const v=Number($(id).value);if(!Number.isFinite(v)||v<m
 $("ebRender").onclick=async()=>{
  if(!vocal||busy)return;lock(true);clear();
  try{
-  const orig=num("ebOriginalBpm",50,250),target=num("ebTargetBpm",100,200),start=num("ebStart",0,vocal[0].length/SR),bars=num("ebBars",4,16),chords=parseChords($("ebChords").value),ratio=target/orig;
+  const orig=num("ebOriginalBpm",50,250),target=num("ebTargetBpm",100,200),start=num("ebStart",0,vocal[0].length/SR),bars=num("ebBars",4,32),chords=parseChords($("ebChords").value),ratio=target/orig;
   // Source advances target/original samples for every output sample.
   const n=Math.min(Math.floor(bars*4*60/target*SR),Math.floor((vocal[0].length-start*SR)/ratio));if(n<SR*.5)throw Error("Za mało wokalu od wybranej pozycji.");
   say("Dopasowuję tempo wokalu bez celowej zmiany jego wysokości…");const v=await stretch(vocal,start,ratio,n,p=>progress(p*.45));
-  say("Tworzę perkusję, bas i syntezatory…");const i=await backing(target,chords,n,$("ebStyle").value,p=>progress(.45+p*.5));
+  say("Tworzę perkusję, bas i syntezatory…");const sections=arrangement(v,target);
+  $("ebArrangement").textContent=sections.map((s,i)=>"Takt "+s.bar+" · "+$("ebChords").value.trim().split(/[\s,|]+/).filter(Boolean)[i%chords.length]+" · "+s.type).join("\n");
+  const i=await backing(target,chords,n,$("ebStyle").value,p=>progress(.45+p*.5),{sections,preset:$("ebPreset").value,lead:num("ebLead",0,2)});
   const m=mix(v,i,num("ebVGain",0,2),num("ebIGain",0,2));say("Przygotowuję pliki WAV…");
   const name=vocalName+"-"+target+"bpm";
   for(const [data,player,link,suffix] of [[m,"ebMix","ebMixSave","remix"],[i,"ebBacking","ebBackingSave","instrumental"],[v,"ebStretched","ebStretchedSave","vocals"]]){
