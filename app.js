@@ -1,4 +1,5 @@
 import {encodeWav} from "./wav.js";
+import {shareWav} from "./share-wav.js";
 import {openMDX,splitMDX} from "./mdx-direct.js?v=016";
 const $=id=>document.getElementById(id);
 const controls=["file","model","modelSource","modelFile","wasmFile","backend","scope","start","run","probe","sendVocal"];
@@ -87,6 +88,9 @@ $("run").onclick=async()=>{
  }catch(e){status("Błąd ["+read(RUNKEY)+"]: "+errorText(e));await releaseEngine();}
  finally{mark("");setBusy(false);}
 };
+for(const [button,i,suffix] of [["shareV",0,"vocals"],["shareI",1,"instrumental"]]){
+ $(button).onclick=()=>shareWav(outputBlobs[i],baseName+"-"+suffix+".wav",s=>{$("saveStatus").textContent=s;log(s);});
+}
 $("sendVocal").onclick=async()=>{
  if(busy||!outputBlobs[0])return;
  setBusy(true);try{await releaseEngine();window.dispatchEvent(new CustomEvent("tojo-vocal",{detail:{blob:outputBlobs[0],name:baseName+"-vocals.wav",reference:input,offset:lastOffset}}));}finally{setBusy(false);}
@@ -98,4 +102,4 @@ $("clearLog").onclick=()=>{
  try{localStorage.removeItem(LOGKEY);}catch{}
  $("copy").textContent="Kopiuj log";
 };
-log("Tojo v0.2.0 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
+log("Tojo v0.2.1 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
