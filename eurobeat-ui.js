@@ -1,13 +1,14 @@
 import {encodeWav} from "./wav.js";
+import {shareWav} from "./share-wav.js";
 import {SR,analyze,parseChords,stretch,backing,mix} from "./eurobeat-dsp.js?v=020";
 const $=id=>document.getElementById(id);
 const ids=["ebVocal","ebReference","ebAnalyze","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebVGain","ebIGain","ebRender"];
-let vocal=null,reference=null,refOffset=0,vocalName="track",busy=false,urls=[],vocalURL=null;
+let vocal=null,reference=null,refOffset=0,vocalName="track",busy=false,urls=[],blobs=[],vocalURL=null;
 function say(s){$("ebStatus").textContent=s;}
 function enable(){for(const id of ids)$(id).disabled=busy;$("ebAnalyze").disabled=busy||!vocal;$("ebRender").disabled=busy||!vocal;}
 function progress(p){$("ebProgress").value=p;}
 function lock(v){busy=v;$("ebProgress").hidden=!v;if(v)progress(0);enable();}
-function clear(){for(const id of ["ebMix","ebBacking","ebStretched"]){$(id).pause();$(id).removeAttribute("src");$(id).load();}for(const u of urls)URL.revokeObjectURL(u);urls=[];$("ebOutput").hidden=true;}
+function clear(){for(const id of ["ebMix","ebBacking","ebStretched"]){$(id).pause();$(id).removeAttribute("src");$(id).load();}for(const u of urls)URL.revokeObjectURL(u);urls=[];blobs=[];$("ebSaveStatus").textContent="";$("ebOutput").hidden=true;}
 async function decode(blob){const ctx=new OfflineAudioContext(2,1,SR),b=await ctx.decodeAudioData(await blob.arrayBuffer());const left=b.getChannelData(0),right=b.getChannelData(Math.min(1,b.numberOfChannels-1));return [left,right];}
 function asWav(ch){return encodeWav({numberOfChannels:2,sampleRate:SR,length:ch[0].length,duration:ch[0].length/SR,getChannelData:i=>ch[i]});}
 function resetAnalysis(){ $("ebAnalysis").textContent="Brak analizy. Możesz wpisać tempo i akordy ręcznie."; $("ebOriginalBpm").value=120;$("ebStart").value=0;$("ebKey").value="";$("ebChords").value="Am F C G";}
@@ -48,11 +49,12 @@ $("ebRender").onclick=async()=>{
   const m=mix(v,i,num("ebVGain",0,2),num("ebIGain",0,2));say("Przygotowuję pliki WAV…");
   const name=vocalName+"-"+target+"bpm";
   for(const [data,player,link,suffix] of [[m,"ebMix","ebMixSave","remix"],[i,"ebBacking","ebBackingSave","instrumental"],[v,"ebStretched","ebStretchedSave","vocals"]]){
-   const url=URL.createObjectURL(asWav(data));urls.push(url);$(player).src=url;$(link).href=url;$(link).download=name+"-"+suffix+".wav";
+   const blob=asWav(data);blobs.push({blob,name:name+"-"+suffix+".wav"});const url=URL.createObjectURL(blob);urls.push(url);$(player).src=url;$(link).href=url;$(link).download=name+"-"+suffix+".wav";
   }
   progress(1);$("ebOutput").hidden=false;say("Gotowe: "+(n/SR).toFixed(1)+" s · "+target+" BPM. Posłuchaj i popraw ustawienia.");
  }catch(e){clear();say("Błąd: "+e.message);}finally{lock(false);}
 };
+for(const [id,i] of [["ebMixShare",0],["ebBackingShare",1],["ebStretchedShare",2]])$(id).onclick=()=>{const b=blobs[i];if(b)shareWav(b.blob,b.name,s=>$("ebSaveStatus").textContent=s);};
 const players=["original","vocals","instrumental","ebVocalPlayer","ebMix","ebBacking","ebStretched"];
 for(const id of players)$(id).addEventListener("play",()=>{for(const other of players)if(other!==id)$(other).pause();});
 enable();
