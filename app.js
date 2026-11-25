@@ -1,9 +1,10 @@
 import {encodeWav} from "./wav.js";
 import {openMDX,splitMDX} from "./mdx-direct.js?v=016";
 const $=id=>document.getElementById(id);
-const controls=["file","model","modelSource","modelFile","wasmFile","backend","scope","start","run","probe"];
+const controls=["file","model","modelSource","modelFile","wasmFile","backend","scope","start","run","probe","sendVocal"];
 let modelRevision=0,wasmRevision=0;
 let input=null, originalUrl=null, duration=0, output=[], baseName="track", busy=false, separator=null, separatorKey="";
+let outputBlobs=[],lastOffset=0;
 const LOGKEY="tojo-diagnostic-v011", RUNKEY="tojo-active-stage";
 function store(k,v){try{localStorage.setItem(k,v)}catch{}}
 function read(k){try{return localStorage.getItem(k)||""}catch{return ""}}
@@ -15,9 +16,9 @@ if(prior){log("Poprzednia sesja przerwana podczas: "+prior);$("status").textCont
 const status=msg=>{$("status").textContent=msg;log(msg);};
 const errorText=e=>e?.message||String(e);
 function setBusy(b){busy=b;for(const id of controls)$(id).disabled=b;$("run").disabled=b||!input;$("progress").hidden=!b;if(b)$("progress").removeAttribute("value");}
-function clearResults(){for(const id of ["vocals","instrumental"]){$(id).pause();$(id).removeAttribute("src");$(id).load();}for(const id of ["downloadV","downloadI"])$(id).removeAttribute("href");for(const item of output)URL.revokeObjectURL(item);output=[];$("results").hidden=true;}
+function clearResults(){for(const id of ["vocals","instrumental"]){$(id).pause();$(id).removeAttribute("src");$(id).load();}for(const id of ["downloadV","downloadI"])$(id).removeAttribute("href");for(const item of output)URL.revokeObjectURL(item);output=[];outputBlobs=[];$("results").hidden=true;}
 function renderResults(){for(const [i,a,d,name] of [[0,"vocals","downloadV","vocals"],[1,"instrumental","downloadI","instrumental"]]){$(a).pause();$(a).src=output[i];$(d).href=output[i];$(d).download=baseName+"-"+name+".wav";}$("results").hidden=false;}
-$("swap").onclick=()=>{if(output.length===2){output.reverse();renderResults();log("Zamieniono etykiety wyników.");}};
+$("swap").onclick=()=>{if(output.length===2){output.reverse();outputBlobs.reverse();renderResults();log("Zamieniono etykiety wyników.");}};
 const modelURLs={"UVR_MDXNET_KARA_2":"https://huggingface.co/AI4future/RVC/resolve/main/UVR_MDXNET_KARA_2.onnx","UVR-MDX-NET-Voc_FT":"https://huggingface.co/Blane187/all_public_uvr_models/resolve/main/UVR-MDX-NET-Voc_FT.onnx","Kim_Vocal_2":"https://huggingface.co/Blane187/all_public_uvr_models/resolve/main/Kim_Vocal_2.onnx"};
 function updateModelUI(){ $("modelLink").href=modelURLs[$("model").value];$("modelFileWrap").hidden=$("modelSource").value!=="file"; }
 async function releaseEngine(){const old=separator;separator=null;separatorKey="";if(old)try{await old.session.release();}catch(e){log("Zwalnianie sesji: "+errorText(e));}}
@@ -68,6 +69,7 @@ $("run").onclick=async()=>{
   if(full&&decoded.duration>60&&!confirm("Długi utwór może przeciążyć iPhone'a. Kontynuować?")){status("Anulowano");return;}
   const channels=[0,Math.min(1,decoded.numberOfChannels-1)].map(c=>decoded.getChannelData(c).slice(offset,offset+frames));
   baseName=input.name.replace(/\.[^.]+$/,"")+(full?"":"-"+start+"s");
+  lastOffset=start;
   const engine=await getSeparator();status("Rzeczywista inferencja ONNX…");
   const inferStart=performance.now();
   const [v,i]=await splitMDX(engine,channels,log,mark,p=>{
@@ -79,11 +81,15 @@ $("run").onclick=async()=>{
   log("Korelacja mix–vok "+mv.corr.toFixed(5)+" | mix–inst "+mi.corr.toFixed(5)+" | vok–inst "+vi.corr.toFixed(5));
   log("RMS mix/vok/inst "+[mv.rmsA,mv.rmsB,mi.rmsB].map(x=>x.toFixed(5)).join(" / "));
   const suspicious=Math.abs(vi.corr)>.995||mv.rmsB<1e-6||mi.rmsB<1e-6;
-  mark("eksport WAV");output=[URL.createObjectURL(wavFor(v)),URL.createObjectURL(wavFor(i))];renderResults();
+  mark("eksport WAV");outputBlobs=[wavFor(v),wavFor(i)];output=outputBlobs.map(b=>URL.createObjectURL(b));renderResults();
   $("resultInfo").textContent=(frames/44100).toFixed(2)+" s · "+((performance.now()-t)/1000).toFixed(1)+" s obliczeń";
   status(suspicious?"UWAGA: ścieżki podobne lub jedna cicha. Sprawdź log i odsłuch.":"Wyniki gotowe. Sprawdź wokal i instrumental.");
  }catch(e){status("Błąd ["+read(RUNKEY)+"]: "+errorText(e));await releaseEngine();}
  finally{mark("");setBusy(false);}
+};
+$("sendVocal").onclick=async()=>{
+ if(busy||!outputBlobs[0])return;
+ setBusy(true);try{await releaseEngine();window.dispatchEvent(new CustomEvent("tojo-vocal",{detail:{blob:outputBlobs[0],name:baseName+"-vocals.wav",reference:input,offset:lastOffset}}));}finally{setBusy(false);}
 };
 $("copy").onclick=async()=>{try{await navigator.clipboard.writeText($("log").textContent);$("copy").textContent="Skopiowano";}catch{const r=document.createRange();r.selectNodeContents($("log"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("copy").textContent="Zaznaczono log";}};
 $("clearLog").onclick=()=>{
@@ -92,4 +98,4 @@ $("clearLog").onclick=()=>{
  try{localStorage.removeItem(LOGKEY);}catch{}
  $("copy").textContent="Kopiuj log";
 };
-log("Tojo v0.1.7 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
+log("Tojo v0.2.0 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
