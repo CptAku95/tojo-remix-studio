@@ -1,5 +1,5 @@
 import {encodeWav} from "./wav.js";
-import {openMDX,splitMDX} from "./mdx-direct.js?v=014";
+import {openMDX,splitMDX} from "./mdx-direct.js?v=015";
 const $=id=>document.getElementById(id);
 const controls=["file","model","modelSource","modelFile","wasmFile","backend","scope","start","run","probe"];
 let modelRevision=0,wasmRevision=0;
@@ -23,7 +23,7 @@ function updateModelUI(){ $("modelLink").href=modelURLs[$("model").value];$("mod
 async function releaseEngine(){const old=separator;separator=null;separatorKey="";if(old)try{await old.session.release();}catch(e){log("Zwalnianie sesji: "+errorText(e));}}
 $("model").onchange=updateModelUI;$("modelSource").onchange=updateModelUI;
 $("modelFile").onchange=()=>{const f=$("modelFile").files[0];modelRevision++;if(f){const matched=Object.keys(modelURLs).find(n=>(n+".onnx").toLowerCase()===f.name.toLowerCase());if(matched){$("model").value=matched;updateModelUI();}log("Lokalny model: "+f.name+" ("+(f.size/1048576).toFixed(1)+" MiB)");}};
-if(navigator.userAgent.includes("Working Copy")){$("modelSource").value="file";updateModelUI();}
+if(navigator.userAgent.includes("Working Copy")){$("modelSource").value="file";}updateModelUI();
 $("wasmFile").onchange=()=>{wasmRevision++;const f=$("wasmFile").files[0];if(f)log("Lokalny runtime: "+f.name+" ("+(f.size/1048576).toFixed(2)+" MiB)");};
 $("scope").onchange=()=>{$("startWrap").hidden=$("scope").value==="full";};
 $("file").onchange=()=>{if(busy)return;const f=$("file").files[0];if(!f)return;clearResults();if(originalUrl)URL.revokeObjectURL(originalUrl);input=f;duration=0;originalUrl=URL.createObjectURL(f);$("original").src=originalUrl;$("original").hidden=false;$("info").textContent=f.name+" · "+(f.size/1048576).toFixed(1)+" MB";$("start").value=0;$("run").disabled=false;status("Plik wybrany.");};
@@ -69,7 +69,12 @@ $("run").onclick=async()=>{
   const channels=[0,Math.min(1,decoded.numberOfChannels-1)].map(c=>decoded.getChannelData(c).slice(offset,offset+frames));
   baseName=input.name.replace(/\.[^.]+$/,"")+(full?"":"-"+start+"s");
   const engine=await getSeparator();status("Rzeczywista inferencja ONNX…");
-  const [v,i]=await splitMDX(engine,channels,log,mark,p=>{$("progress").value=p;$("status").textContent="Inferencja "+Math.round(p*100)+"%";});
+  const inferStart=performance.now();
+  const [v,i]=await splitMDX(engine,channels,log,mark,p=>{
+   $("progress").value=p;
+   const remaining=p>0?Math.max(0,Math.round((performance.now()-inferStart)/1000*(1-p)/p)):0;
+   $("status").textContent="Inferencja "+Math.round(p*100)+"%"+(p>0&&p<1?" · szac. "+Math.floor(remaining/60)+" min "+remaining%60+" s do końca":"");
+  });
   const mv=metrics(channels[0],v[0]),mi=metrics(channels[0],i[0]),vi=metrics(v[0],i[0]);
   log("Korelacja mix–vok "+mv.corr.toFixed(5)+" | mix–inst "+mi.corr.toFixed(5)+" | vok–inst "+vi.corr.toFixed(5));
   log("RMS mix/vok/inst "+[mv.rmsA,mv.rmsB,mi.rmsB].map(x=>x.toFixed(5)).join(" / "));
@@ -81,4 +86,4 @@ $("run").onclick=async()=>{
  finally{mark("");setBusy(false);}
 };
 $("copy").onclick=async()=>{try{await navigator.clipboard.writeText($("log").textContent);$("copy").textContent="Skopiowano";}catch{const r=document.createRange();r.selectNodeContents($("log"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("copy").textContent="Zaznaczono log";}};
-log("Tojo v0.1.4 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
+log("Tojo v0.1.5 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
