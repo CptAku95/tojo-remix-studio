@@ -6,12 +6,43 @@ const CONFIG={
  Kim_Vocal_2:{n:7680,f:3072,primary:"vocals",gain:1.009}
 };
 const STEP=1024,FRAMES=256,SIZE=STEP*(FRAMES-1);
-export async function openMDX(name,backend,readBytes,log,mark){
+const CDN_LIST=["https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/",CDN,"https://unpkg.com/onnxruntime-web@1.22.0/dist/"];
+async function getWasm(filename,file,log){
+ if(file&&file.name!==filename)throw Error("Wymagany plik runtime: "+filename);
+ const check=bytes=>{
+  if(bytes.length<1000000||bytes[0]!==0||bytes[1]!==97||bytes[2]!==115||bytes[3]!==109)throw Error("Nieprawidłowy nagłówek lub rozmiar WASM");
+  return bytes;
+ };
+ if(file){log("WASM: odczyt lokalnego pliku "+file.name);return check(new Uint8Array(await file.arrayBuffer()));}
+ let cache=null;try{cache=await caches.open("tojo-ort-1.22.0");}catch{}
+ const key=CDN_LIST[0]+filename;
+ if(cache)try{const hit=await cache.match(key);if(hit){const bytes=check(new Uint8Array(await hit.arrayBuffer()));log("WASM: cache hit");return bytes;}}catch{}
+ for(const base of CDN_LIST){
+  const url=base+filename;
+  try{
+   log("WASM fetch: "+url);
+   const r=await fetch(url,{mode:"cors",credentials:"omit"});
+   if(!r.ok)throw Error("HTTP "+r.status);
+   const bytes=check(new Uint8Array(await r.arrayBuffer()));
+   if(cache)try{await cache.put(key,new Response(bytes,{headers:{"content-type":"application/wasm"}}));}catch{}
+   return bytes;
+  }catch(e){log("WASM fetch nieudany: "+(e?.message||e));}
+ }
+ throw Error("Wskaż lokalny plik "+filename+" w sekcji Runtime WASM.");
+}
+export async function openMDX(name,backend,readBytes,log,mark,wasmFile){
  const cfg=CONFIG[name];if(!cfg)throw Error("Nieznany model");
  const gpu=backend==="gpu"||backend==="auto"&&!!navigator.gpu;
  mark("import ORT");log("ORT 1.22.0: "+(gpu?"WebGPU build":"WASM-only build"));
- const ort=await import(gpu?CDN+"ort.webgpu.bundle.min.mjs":CDN+"ort.wasm.min.mjs");
- ort.env.wasm.numThreads=1;ort.env.wasm.proxy=false;ort.env.wasm.wasmPaths=CDN;
+ const bundle=gpu?"ort.webgpu.bundle.min.mjs":"ort.wasm.bundle.min.mjs";
+ let ort;try{ort=await import(CDN+bundle);}catch(e){log("Import CDN nieudany: "+e.message);ort=await import(CDN_LIST[0]+bundle);}
+ ort.env.wasm.numThreads=1;ort.env.wasm.proxy=false;
+ const filename=gpu?"ort-wasm-simd-threaded.jsep.wasm":"ort-wasm-simd-threaded.wasm";
+ mark("odczyt runtime WASM");
+ const wasm=await getWasm(filename,wasmFile,log);
+ log("WASM: "+wasm.byteLength+" B; magic 00 61 73 6d; przekazanie bezpośrednio jako wasmBinary");
+ ort.env.wasm.wasmBinary=wasm;
+ ort.env.wasm.wasmPaths={mjs:CDN+(gpu?"ort-wasm-simd-threaded.jsep.mjs":"ort-wasm-simd-threaded.mjs")};
  ort.env.logLevel="warning";
  mark("odczyt bajtów ONNX");
  const bytes=await readBytes();
