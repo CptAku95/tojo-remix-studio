@@ -67,12 +67,17 @@ export async function splitMDX(engine,channels,log,mark,progress){
  const sum=[new Float32Array(len),new Float32Array(len)],weight=new Float32Array(len);
  const window=new Float32Array(SIZE);for(let i=0;i<SIZE;i++)window[i]=.5-.5*Math.cos(2*Math.PI*(i+.5)/SIZE);
  const starts=[];for(let i=-trim;i<len;i+=stride)starts.push(i);
- let calls=0;
+ let calls=0,done=0,skipped=0;
  for(const start of starts){
-   mark("FFT / ONNX chunk "+(calls+1)+"/"+starts.length);
+   mark("FFT / ONNX chunk "+(done+1)+"/"+starts.length);
    const block=new Float32Array(2*SIZE);
    const from=Math.max(0,start),to=Math.min(len,start+SIZE);
-   for(let c=0;c<2;c++)for(let i=from;i<to;i++)block[c*SIZE+i-start]=channels[c][i]/peak;
+   let nonzero=false;
+   for(let c=0;c<2;c++)for(let i=from;i<to;i++){const x=channels[c][i];if(x!==0)nonzero=true;block[c*SIZE+i-start]=x/peak;}
+   if(!nonzero){
+    for(let i=from;i<to;i++)weight[i]+=window[i-start];
+    skipped++;done++;log("Fragment "+done+": całkowita cisza, pominięto ONNX");progress(done/starts.length);await new Promise(r=>setTimeout(r,0));continue;
+   }
    const spec=fft.forward(block,1,SIZE);
    if(spec.length!==4*cfg.f*FRAMES)throw Error("Nieprawidłowy tensor STFT: "+spec.length);
    const tensor=new ort.Tensor("float32",spec,[1,4,cfg.f,FRAMES]);
@@ -83,15 +88,15 @@ export async function splitMDX(engine,channels,log,mark,progress){
     if(!p||p.length!==spec.length)throw Error("Nieoczekiwany rozmiar wyjścia ONNX");
     let total=0,diff=0,energy=0;
     for(let i=0;i<p.length;i+=17){if(!Number.isFinite(p[i]))throw Error("ONNX zwrócił NaN");total+=spec[i]*spec[i];diff+=(p[i]-spec[i])**2;energy+=p[i]*p[i];}
-    log("ONNX run "+(calls+1)+": "+prediction.dims.join("×")+", różnica widma "+(Math.sqrt(diff/(total+1e-20))).toFixed(5)+", energia "+(Math.sqrt(energy/(total+1e-20))).toFixed(5));
+    log("ONNX run "+(calls+1)+": "+prediction.dims.join("×")+(total<1e-12?", widmo wejściowe bliskie zeru; pominięto względne statystyki":", różnica widma "+Math.sqrt(diff/total).toFixed(5)+", energia "+Math.sqrt(energy/total).toFixed(5)));
     mark("inverse STFT "+(calls+1));const wave=fft.inverse(p,1);
     if(wave.length!==2*SIZE)throw Error("Nieoczekiwany rozmiar ISTFT");
     for(let i=from;i<to;i++){const j=i-start,w=window[j];weight[i]+=w;for(let c=0;c<2;c++){const x=wave[c*SIZE+j];if(!Number.isFinite(x))throw Error("ISTFT zwrócił NaN");sum[c][i]+=x*w;}}
    }finally{tensor.dispose?.();if(outputs)for(const o of Object.values(outputs))o.dispose?.();}
-   calls++;progress(calls/starts.length);await new Promise(r=>setTimeout(r,0));
+   calls++;done++;progress(done/starts.length);await new Promise(r=>setTimeout(r,0));
  }
  const primary=sum,secondary=[new Float32Array(len),new Float32Array(len)];
  for(let c=0;c<2;c++)for(let i=0;i<len;i++){primary[c][i]=primary[c][i]/Math.max(1e-8,weight[i])*peak*cfg.gain;secondary[c][i]=channels[c][i]-primary[c][i];}
- log("Rzeczywiste wywołania session.run: "+calls);
+ log("Rzeczywiste wywołania session.run: "+calls+"; pominięte puste fragmenty: "+skipped);
  return cfg.primary==="vocals"?[primary,secondary]:[secondary,primary];
 }
