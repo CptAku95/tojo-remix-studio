@@ -1,5 +1,5 @@
 import {encodeWav} from "./wav.js";
-import {openMDX,splitMDX} from "./mdx-direct.js?v=015";
+import {openMDX,splitMDX} from "./mdx-direct.js?v=016";
 const $=id=>document.getElementById(id);
 const controls=["file","model","modelSource","modelFile","wasmFile","backend","scope","start","run","probe"];
 let modelRevision=0,wasmRevision=0;
@@ -86,4 +86,4 @@ $("run").onclick=async()=>{
  finally{mark("");setBusy(false);}
 };
 $("copy").onclick=async()=>{try{await navigator.clipboard.writeText($("log").textContent);$("copy").textContent="Skopiowano";}catch{const r=document.createRange();r.selectNodeContents($("log"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("copy").textContent="Zaznaczono log";}};
-log("Tojo v0.1.5 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
+log("Tojo v0.1.6 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
