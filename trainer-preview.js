@@ -1,0 +1,7 @@
+import {renderArrangement,peakGuard} from "./eurobeat-engine.js?v=040";
+import {builtinBank} from "./soundbank.js?v=040";
+import {encodeWav} from "./wav.js";
+const SR=44100;
+function drumKind(p){if(p===35||p===36)return "kick";if([37,38,39,40].includes(p))return "clap";if([42,44].includes(p))return "closed";if(p===46)return "open";if([49,51,52,53,55,57,59].includes(p))return "crash";return "tom"}
+export function previewPlan(events,bars,bpm){const step=60/bpm/4,seconds=bars*16*step,length=Math.ceil(seconds*SR),plan={step,events:[]};for(const e of events){if(e.step<0||e.step>=bars*16||e.length<1)continue;const drums=e.role==="drums",role=drums?"drums":e.role==="bass"?"bass":e.role==="lead"?"brass":"pad",kind=drums?drumKind(e.pitch):role==="bass"?"fm":role==="brass"?"brass":"pad";const t=e.step*step,base=role==="drums"?.65:role==="bass"?.48:role==="brass"?.32:.23;plan.events.push({role,kind,time:t,duration:Math.min(seconds-t,drums?Math.min(.24,e.length*step):e.length*step*.93),pitch:e.pitch,velocity:base*e.velocity/127,pan:role==="brass"?.12:role==="pad"?-.16:0})}return {plan,length}}
+export async function renderPreview(events,bars,bpm,onStatus=()=>{}){const {plan,length}=previewPlan(events,bars,bpm);const sampleBank=await builtinBank();let stats={sampled:0,fallback:0};const channels=peakGuard(await renderArrangement(plan,length,{sampleBank,onSampleStats:s=>stats=s},p=>onStatus("Renderowanie "+Math.round(p*100)+"%")));const blob=encodeWav({numberOfChannels:2,sampleRate:SR,length,duration:length/SR,getChannelData:i=>channels[i]});return {blob,...stats}}
