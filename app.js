@@ -98,9 +98,8 @@ $("sendVocal").onclick=async()=>{
 };
 $("copy").onclick=async()=>{try{await navigator.clipboard.writeText($("log").textContent);$("copy").textContent="Skopiowano";}catch{const r=document.createRange();r.selectNodeContents($("log"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("copy").textContent="Zaznaczono log";}};
 $("clearLog").onclick=()=>{
- if(!confirm("Wyczyścić historię diagnostyki?"))return;
  $("log").textContent="";
  try{localStorage.removeItem(LOGKEY);}catch{}
  $("copy").textContent="Kopiuj log";
 };
-log("Tojo v0.3.1 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
+log("Tojo v0.3.2 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
