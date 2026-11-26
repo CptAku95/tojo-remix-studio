@@ -10,18 +10,26 @@ async function bytes(file,urls,what){
  for(const url of urls){try{log(what+" fetch: "+url);const r=await fetch(url);if(!r.ok)throw Error("HTTP "+r.status);return new Uint8Array(await r.arrayBuffer());}catch(e){log(what+" fetch: "+e.message);}}
  throw Error("Nie można pobrać "+what+". Wskaż pobrany plik lokalny.");
 }
-export function extractNotes(frames,onsets,from,duration){
+export function extractNotes(frames,onsets,from,duration,sensitive=false){
  const notes=[],count=frames.length/BINS,dt=H/142/SR;
  for(let p=0;p<BINS;p++){
   let begin=-1,sum=0,num=0,quiet=0;
   function finish(end){if(begin>=0&&end-begin>=6){const a=begin*dt,b=Math.min(duration,end*dt);if(b>a)notes.push({start:from+a,duration:b-a,pitch:p+21,amp:sum/Math.max(1,num)});}begin=-1;sum=0;num=0;quiet=0;}
   for(let t=0;t<count;t++){const j=t*BINS+p,f=frames[j],o=onsets[j],prev=t?onsets[j-BINS]:0;
    if(begin>=0&&t-begin>=6&&o>.55&&prev<=.55&&f>.3)finish(t);
-   if(begin<0&&(f>.45||o>.5&&f>.25))begin=t;
-   if(begin>=0){if(f<.3){quiet++;if(quiet>=4)finish(t-quiet+1);}else{quiet=0;sum+=f;num++;}}
+   if(begin<0&&(f>(sensitive?.34:.45)||o>.5&&f>(sensitive?.20:.25)))begin=t;
+   if(begin>=0){if(f<(sensitive?.23:.3)){quiet++;if(quiet>=4)finish(t-quiet+1);}else{quiet=0;sum+=f;num++;}}
   }finish(count-quiet);
  }
  return notes.sort((a,b)=>a.start-b.start);
+}
+// Cascaded high-pass at 180 Hz; capped gain so we do not amplify silence excessively.
+export function focusMelody(mono){
+ const result=new Float32Array(mono.length),alpha=Math.exp(-2*Math.PI*180/SR);
+ let x1=0,y1=0,x2=0,y2=0,peak=0;
+ for(let i=0;i<mono.length;i++){const x=mono[i],a=alpha*(y1+x-x1),b=alpha*(y2+a-x2);x1=x;y1=a;x2=a;y2=b;result[i]=b;peak=Math.max(peak,Math.abs(b));}
+ const gain=Math.min(4,.85/Math.max(peak,1e-8));for(let i=0;i<result.length;i++)result[i]*=gain;
+ return result;
 }
 export async function transcribe(ch,start,seconds,onStatus=()=>{},onProgress=()=>{},files={}){
  let stage="przygotowanie audio",session;
@@ -60,26 +68,35 @@ export async function transcribe(ch,start,seconds,onStatus=()=>{},onProgress=()=
   testOk=ranked[0].p===69;
   log("TEST A4: oczekiwane MIDI 69; top "+ranked.slice(0,5).map(x=>x.p+":"+x.v.toFixed(3)).join(" / ")+" · "+(testOk?"OK":"UWAGA"));
  }finally{testInput.dispose?.();if(testOut)for(const x of Object.values(testOut))x.dispose?.();}
- const chunks=Math.ceil(n/H),frames=new Float32Array(chunks*142*BINS),onsets=new Float32Array(frames.length);
- say("Rozpoznawanie nut");
+ const chunks=Math.ceil(n/H),count=Math.min(chunks*142,Math.ceil(n/H*142));
+ async function runPass(audio,focused){
+ const frames=new Float32Array(chunks*142*BINS),onsets=new Float32Array(frames.length);
+ say(focused?"Rozpoznawanie melodii (bez dominującego basu)":"Rozpoznawanie nut pełnego instrumentalu");
  for(let k=0;k<chunks;k++){
   const block=new Float32Array(W),pos=k*H-PAD;
-  for(let i=0;i<W;i++)if(pos+i>=0&&pos+i<n)block[i]=mono[pos+i];
+  for(let i=0;i<W;i++)if(pos+i>=0&&pos+i<n)block[i]=audio[pos+i];
   const input=new ort.Tensor("float32",block,[1,W,1]);let out;
   try{
    const t=performance.now();out=await session.run({[session.inputNames[0]]:input},[noteName,onsetName]);
    const f=out[noteName],o=out[onsetName];
    if(f.dims.join(",")!=="1,172,88"||o.dims.join(",")!=="1,172,88")throw Error("Nieoczekiwane wymiary: "+f.dims.join("×"));
    frames.set(f.data.subarray(15*BINS,157*BINS),k*142*BINS);onsets.set(o.data.subarray(15*BINS,157*BINS),k*142*BINS);
-   log("Fragment "+(k+1)+"/"+chunks+" · "+((performance.now()-t)/1000).toFixed(2)+" s");
+   log((focused?"Melodia ":"Pełne pasmo ")+(k+1)+"/"+chunks+" · "+((performance.now()-t)/1000).toFixed(2)+" s");
   }finally{input.dispose?.();if(out)for(const value of Object.values(out))value.dispose?.();}
-  onProgress((k+1)/chunks);await pause();
+  onProgress((focused?.5:0)+.5*(k+1)/chunks);await pause();
  }
- const count=Math.min(chunks*142,Math.ceil(n/H*142)),notes=extractNotes(frames.subarray(0,count*BINS),onsets.subarray(0,count*BINS),start,n/SR);
+ return extractNotes(frames.subarray(0,count*BINS),onsets.subarray(0,count*BINS),start,n/SR,focused);
+ }
+ const raw=await runPass(mono,false),focused=await runPass(focusMelody(mono),true);
+ const bassNotes=raw.filter(x=>x.pitch<48),melodyNotes=raw.filter(x=>x.pitch>=48);
+ // Merge overlapping detections of the same pitch, keeping the unfiltered result.
+ for(const x of focused){if(x.pitch<48)continue;if(!melodyNotes.some(y=>y.pitch===x.pitch&&Math.min(y.start+y.duration,x.start+x.duration)-Math.max(y.start,x.start)>Math.min(y.duration,x.duration)*.35))melodyNotes.push(x);}
+ const notes=[...bassNotes,...melodyNotes].sort((a,b)=>a.start-b.start);
+ log("Pełne pasmo: "+raw.length+" · filtr melodii: "+focused.length+" · bas: "+bassNotes.length+" · wyższe nuty: "+melodyNotes.length);
  const hist=new Map();for(const note of notes)hist.set(note.pitch,(hist.get(note.pitch)||0)+1);
  const pitches=[...hist.keys()].sort((a,b)=>a-b),range=pitches.length?[pitches[0],pitches.at(-1)]:null;
  log("Wykryto "+notes.length+" nut; zakres MIDI "+(range?range.join("–"):"brak")+"; histogram "+pitches.map(p=>p+":"+hist.get(p)).join(" "));
- return {notes,from:start,to:start+n/SR,range,testOk};
+ return {notes,bassNotes,melodyNotes,rawCount:raw.length,focusedCount:focused.length,from:start,to:start+n/SR,range,testOk};
  }catch(e){log("BŁĄD ["+stage+"]: "+e.message);throw Error(stage+": "+e.message);}finally{if(session)try{await session.release();}catch{}}
 }
 export function addOriginalNotes(extra,notes,start,ratio,gain){
