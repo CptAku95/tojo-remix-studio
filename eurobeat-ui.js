@@ -2,8 +2,9 @@ import {encodeWav} from "./wav.js";
 import {shareWav} from "./share-wav.js";
 import {transcribe,addOriginalNotes} from "./basic-pitch.js?v=029";
 import {SR,analyze,parseChords,stretch,arrangement,backing,reshapeRhythm,enrichInstrumental,mix} from "./eurobeat-dsp.js?v=029";
+import {planArrangement,renderArrangement,peakGuard} from "./eurobeat-engine.js?v=030";
 const $=id=>document.getElementById(id);
-const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebPitch","ebPitchModel","ebPitchWasm","ebPitchStart","ebPitchSeconds","ebPitchGain","ebBassSource","ebRebuild","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
+const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebPitch","ebPitchModel","ebPitchWasm","ebPitchStart","ebPitchSeconds","ebPitchGain","ebBassSource","ebRebuild","ebEngine","ebDrumsGain","ebBassGain","ebUpbeatGain","ebPadGain","ebBrassGain","ebFxGain","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
 let transcription=null,vocal=null,baseBlob=null,reference=null,refOffset=0,vocalName="track",busy=false,urls=[],blobs=[],vocalURL=null;
 function say(s){$("ebStatus").textContent=s;$("ebSourceStatus").textContent=s;}
 function enable(){for(const id of ids)$(id).disabled=busy;$("ebAnalyze").disabled=busy||!vocal;$("ebBase").disabled=busy||!vocal;$("ebRender").disabled=busy||!vocal||!baseBlob;$("ebAnalyze").disabled=busy||!vocal||(!baseBlob&&!reference);$("ebPitch").disabled=busy||!baseBlob;}
@@ -72,11 +73,18 @@ $("ebRender").onclick=async()=>{
   say("Osłabiam oryginalną perkusję, zachowując część melodyczną…");
   const foundation=await reshapeRhythm(original,amount,p=>progress(.30+.35*p));
   say("Buduję sekcję rytmiczną Eurobeat…");
-  const extra=extraGain>0?await backing(target,chords,n,$("ebStyle").value,p=>progress(.65+p*.30),{sections,preset:$("ebPreset").value,lead:num("ebLead",0,2),sourceBass:transcription?.testOk&&transcription.bassNotes.length&&$("ebBassSource").value==="original"?{notes:transcription.bassNotes,from:transcription.from,to:transcription.to,start,ratio}:null}):[new Float32Array(n),new Float32Array(n)];
+  const modern=$("ebEngine").value==="modern",preset=$("ebPreset").value,style=$("ebStyle").value,lead=num("ebLead",0,2),pitchGain=num("ebPitchGain",0,2),sourceBass=transcription?.testOk&&transcription.bassNotes.length&&$("ebBassSource").value==="original"?{notes:transcription.bassNotes,from:transcription.from,to:transcription.to,start,ratio}:null;
+  let extra=[new Float32Array(n),new Float32Array(n)];
+  if(extraGain>0&&modern){
+   const plan=planArrangement({bpm:target,chords,length:n,sections,sourceBass,melody:transcription?.testOk?transcription.melodyNotes:[],start,ratio,style,preset,lead,pitchGain});
+   const gains=Object.fromEntries([["drums","ebDrumsGain"],["bass","ebBassGain"],["upbeat","ebUpbeatGain"],["pad","ebPadGain"],["brass","ebBrassGain"],["fx","ebFxGain"]].map(([role,id])=>[role,num(id,0,2)]));
+   $("ebArrangement").textContent=plan.labels.map(x=>"Takt "+x.bar+" · "+x.type).join("\n")+"\n\nZdarzenia: "+Object.entries(plan.counts).map(([k,v])=>k+": "+v).join(" · ")+"\nBas z oryginału: "+plan.sourceCount+" kroków";
+   window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:"Engine 0.3: "+JSON.stringify(plan.counts)+"; bas z oryginału: "+plan.sourceCount}));
+   extra=await renderArrangement(plan,n,{preset,gains},p=>progress(.65+p*.30));
+  }else if(extraGain>0)extra=await backing(target,chords,n,style,p=>progress(.65+p*.30),{sections,preset,lead,sourceBass});
   const i=enrichInstrumental(foundation,extra,target,num("ebBaseGain",.4,2),extraGain,extraGain>0?num("ebLowCut",0,.8):0);
-  const pitchGain=num("ebPitchGain",0,2);
-  if(transcription?.testOk&&pitchGain>0)addOriginalNotes(i,transcription.melodyNotes,start,ratio,pitchGain);
-  const safeI=mix(i,[new Float32Array(n),new Float32Array(n)],1,0);const m=mix(v,safeI,num("ebVGain",0,2),1);say("Przygotowuję pliki WAV…");
+  if(!modern&&transcription?.testOk&&pitchGain>0)addOriginalNotes(i,transcription.melodyNotes,start,ratio,pitchGain);
+  const safeI=peakGuard(i),m=peakGuard(mix(v,safeI,num("ebVGain",0,2),1));say("Przygotowuję pliki WAV…");
   const name=vocalName+"-"+target+"bpm";
   for(const [data,player,link,suffix] of [[m,"ebMix","ebMixSave","remix"],[safeI,"ebBacking","ebBackingSave","instrumental"],[v,"ebStretched","ebStretchedSave","vocals"]]){
    const blob=asWav(data);blobs.push({blob,name:name+"-"+suffix+".wav"});const url=URL.createObjectURL(blob);urls.push(url);$(player).src=url;$(link).href=url;$(link).download=name+"-"+suffix+".wav";
