@@ -129,6 +129,45 @@ export async function backing(bpm,chords,length,style,onProgress=()=>{},opts={})
 }
 // Retain the original instrumental as the base. Optional gentle low-band
 // attenuation makes room for the added bass; no source replacement.
+// Stereo-linked harmonic/percussive soft mask. Short horizontal structures
+// are attenuated while stable pitched components are retained.
+// This is spectral processing, not isolated drum stems.
+export async function reshapeRhythm(ch,amount,onProgress=()=>{}){
+ const n=ch[0].length;
+ if(amount<=0){onProgress(1);return ch;}
+ const N=2048,H=512,B=N/2+1,F=Math.ceil(n/H)+1;
+ const mag=new Float32Array(F*B),re=new Float64Array(N),im=new Float64Array(N);
+ const win=Float64Array.from({length:N},(_,i)=>Math.sqrt(.5-.5*Math.cos(TAU*(i+.5)/N)));
+ const spec=(c,k)=>{const at=k*H-N/2;im.fill(0);for(let j=0;j<N;j++)re[j]=(ch[c][at+j]||0)*win[j];fft(re,im);};
+ for(let k=0;k<F;k++){
+  for(let c=0;c<2;c++){spec(c,k);for(let b=0;b<B;b++)mag[k*B+b]+=re[b]*re[b]+im[b]*im[b];}
+  for(let b=0;b<B;b++)mag[k*B+b]=Math.sqrt(mag[k*B+b]*.5);
+  if(k%64===0){onProgress(.4*k/F);await pause();}
+ }
+ const out=[new Float32Array(n),new Float32Array(n)],weight=new Float32Array(n),mask=new Float32Array(B),scratch=new Float32Array(9);
+ function median(){for(let i=1;i<9;i++){const v=scratch[i];let j=i-1;while(j>=0&&scratch[j]>v){scratch[j+1]=scratch[j];j--;}scratch[j+1]=v;}return scratch[4];}
+ for(let k=0;k<F;k++){
+  for(let b=0;b<B;b++){
+   for(let j=0;j<9;j++)scratch[j]=mag[clamp(k+(j-4)*2,0,F-1)*B+b];
+   const harm=median();
+   for(let j=0;j<9;j++)scratch[j]=mag[k*B+clamp(b+(j-4)*2,0,B-1)];
+   const perc=median(),h=harm*harm,p=perc*perc;
+   const keep=h/(h+1.5*p+1e-15);
+   mask[b]=1-amount*(1-keep);
+  }
+  const at=k*H-N/2;
+  for(let c=0;c<2;c++){
+   spec(c,k);
+   for(let b=0;b<N;b++){const m=mask[Math.min(b,N-b)];re[b]*=m;im[b]*=-m;}
+   fft(re,im);
+   for(let j=0;j<N;j++){const i=at+j;if(i>=0&&i<n){out[c][i]+=re[j]*win[j]/N;if(c===0)weight[i]+=win[j]*win[j];}}
+  }
+  if(k%64===0){onProgress(.4+.6*k/F);await pause();}
+ }
+ for(let i=0;i<n;i++){const w=Math.max(weight[i],1e-9);out[0][i]/=w;out[1][i]/=w;}
+ onProgress(1);return out;
+}
+
 export function enrichInstrumental(original,extra,bpm,baseGain,extraGain,lowCut=0){
  const n=original[0].length,out=[new Float32Array(n),new Float32Array(n)];
  const alpha=1-Math.exp(-2*Math.PI*150/SR);
