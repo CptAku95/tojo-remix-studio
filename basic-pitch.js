@@ -10,22 +10,28 @@ async function bytes(file,urls,what){
  for(const url of urls){try{log(what+" fetch: "+url);const r=await fetch(url);if(!r.ok)throw Error("HTTP "+r.status);return new Uint8Array(await r.arrayBuffer());}catch(e){log(what+" fetch: "+e.message);}}
  throw Error("Nie można pobrać "+what+". Wskaż pobrany plik lokalny.");
 }
-export function extractNotes(frames,onsets,from,duration,sensitive=false){
- const notes=[],count=frames.length/BINS,dt=H/142/SR;
- for(let p=0;p<BINS;p++){
-  let begin=-1,sum=0,num=0,quiet=0;
-  function finish(end){if(begin>=0&&end-begin>=6){const a=begin*dt,b=Math.min(duration,end*dt);if(b>a)notes.push({start:from+a,duration:b-a,pitch:p+21,amp:sum/Math.max(1,num)});}begin=-1;sum=0;num=0;quiet=0;}
-  for(let t=0;t<count;t++){const j=t*BINS+p,f=frames[j],o=onsets[j],prev=t?onsets[j-BINS]:0;
-   if(begin>=0&&t-begin>=6&&o>.55&&prev<=.55&&f>.3)finish(t);
-   if(begin<0&&(f>(sensitive?.34:.45)||o>.5&&f>(sensitive?.20:.25)))begin=t;
-   if(begin>=0){if(f<(sensitive?.23:.3)){quiet++;if(quiet>=4)finish(t-quiet+1);}else{quiet=0;sum+=f;num++;}}
-  }finish(count-quiet);
- }
- return notes.sort((a,b)=>a.start-b.start);
+// Streaming note decoder: preserve active notes across inference windows.
+export function noteDecoder(from,duration,sensitive=false){
+ const notes=[],dt=H/142/SR,states=Array.from({length:BINS},()=>({begin:-1,sum:0,num:0,quiet:0,prev:0}));
+ let count=0;
+ function finish(p,end){const s=states[p];if(s.begin>=0&&end-s.begin>=6){const a=s.begin*dt,b=Math.min(duration,end*dt);if(b>a)notes.push({start:from+a,duration:b-a,pitch:p+21,amp:s.sum/Math.max(1,s.num)});}s.begin=-1;s.sum=0;s.num=0;s.quiet=0;}
+ return {
+  push(frames,onsets,limit=frames.length/BINS){
+   for(let t=0;t<limit;t++,count++)for(let p=0;p<BINS;p++){
+    const j=t*BINS+p,f=frames[j],o=onsets[j],s=states[p];
+    if(s.begin>=0&&count-s.begin>=6&&o>.55&&s.prev<=.55&&f>.3)finish(p,count);
+    if(s.begin<0&&(f>(sensitive?.34:.45)||o>.5&&f>(sensitive?.20:.25)))s.begin=count;
+    if(s.begin>=0){if(f<(sensitive?.23:.3)){s.quiet++;if(s.quiet>=4)finish(p,count-s.quiet+1);}else{s.quiet=0;s.sum+=f;s.num++;}}
+    s.prev=o;
+   }
+  },
+  finish(){for(let p=0;p<BINS;p++)finish(p,count-states[p].quiet);return notes.sort((a,b)=>a.start-b.start||a.pitch-b.pitch);}
+ };
 }
+export function extractNotes(frames,onsets,from,duration,sensitive=false){const d=noteDecoder(from,duration,sensitive);d.push(frames,onsets);return d.finish();}
 // Cascaded high-pass at 180 Hz; capped gain so we do not amplify silence excessively.
-export function focusMelody(mono){
- const result=new Float32Array(mono.length),alpha=Math.exp(-2*Math.PI*180/SR);
+export function focusMelody(mono,inPlace=false){
+ const result=inPlace?mono:new Float32Array(mono.length),alpha=Math.exp(-2*Math.PI*180/SR);
  let x1=0,y1=0,x2=0,y2=0,peak=0;
  for(let i=0;i<mono.length;i++){const x=mono[i],a=alpha*(y1+x-x1),b=alpha*(y2+a-x2);x1=x;y1=a;x2=a;y2=b;result[i]=b;peak=Math.max(peak,Math.abs(b));}
  const gain=Math.min(4,.85/Math.max(peak,1e-8));for(let i=0;i<result.length;i++)result[i]*=gain;
@@ -40,6 +46,7 @@ export async function transcribe(ch,start,seconds,onStatus=()=>{},onProgress=()=
  const mono=new Float32Array(n);
  for(let i=0;i<n;i++){const p=offset+i*2;mono[i]=(ch[0][p]+ch[1][p]+ch[0][p+1]+ch[1][p+1])*.25;}
  let peak=0,sq=0;for(const v of mono){peak=Math.max(peak,Math.abs(v));sq+=v*v;}
+ log("Zakres analizy: "+start.toFixed(2)+"–"+(start+n/SR).toFixed(2)+" s; "+(n/SR).toFixed(2)+" s audio");
  log("Audio mono: peak "+peak.toFixed(5)+" · RMS "+Math.sqrt(sq/n).toFixed(5));
  say("Import ONNX Runtime 1.22.0 (CPU)");let ort,last;
  for(const cdn of CDNS)try{ort=await import(cdn+"ort.wasm.bundle.min.mjs");break;}catch(e){last=e;log("Import nieudany: "+e.message);}
@@ -70,7 +77,7 @@ export async function transcribe(ch,start,seconds,onStatus=()=>{},onProgress=()=
  }finally{testInput.dispose?.();if(testOut)for(const x of Object.values(testOut))x.dispose?.();}
  const chunks=Math.ceil(n/H),count=Math.min(chunks*142,Math.ceil(n/H*142));
  async function runPass(audio,focused){
- const frames=new Float32Array(chunks*142*BINS),onsets=new Float32Array(frames.length);
+ const decoder=noteDecoder(start,n/SR,focused);
  say(focused?"Rozpoznawanie melodii (bez dominującego basu)":"Rozpoznawanie nut pełnego instrumentalu");
  for(let k=0;k<chunks;k++){
   const block=new Float32Array(W),pos=k*H-PAD;
@@ -80,14 +87,14 @@ export async function transcribe(ch,start,seconds,onStatus=()=>{},onProgress=()=
    const t=performance.now();out=await session.run({[session.inputNames[0]]:input},[noteName,onsetName]);
    const f=out[noteName],o=out[onsetName];
    if(f.dims.join(",")!=="1,172,88"||o.dims.join(",")!=="1,172,88")throw Error("Nieoczekiwane wymiary: "+f.dims.join("×"));
-   frames.set(f.data.subarray(15*BINS,157*BINS),k*142*BINS);onsets.set(o.data.subarray(15*BINS,157*BINS),k*142*BINS);
-   log((focused?"Melodia ":"Pełne pasmo ")+(k+1)+"/"+chunks+" · "+((performance.now()-t)/1000).toFixed(2)+" s");
+   const take=Math.max(0,Math.min(142,count-k*142));decoder.push(f.data.subarray(15*BINS,(15+take)*BINS),o.data.subarray(15*BINS,(15+take)*BINS),take);
+   if(chunks<=30||k===0||(k+1)%10===0||k+1===chunks)log((focused?"Melodia ":"Pełne pasmo ")+(k+1)+"/"+chunks+" · "+((performance.now()-t)/1000).toFixed(2)+" s");
   }finally{input.dispose?.();if(out)for(const value of Object.values(out))value.dispose?.();}
   onProgress((focused?.5:0)+.5*(k+1)/chunks);await pause();
  }
- return extractNotes(frames.subarray(0,count*BINS),onsets.subarray(0,count*BINS),start,n/SR,focused);
+ return decoder.finish();
  }
- const raw=await runPass(mono,false),focused=await runPass(focusMelody(mono),true);
+ const raw=await runPass(mono,false),focused=await runPass(focusMelody(mono,true),true);
  const bassNotes=raw.filter(x=>x.pitch<48),melodyNotes=raw.filter(x=>x.pitch>=48);
  // Merge overlapping detections of the same pitch, keeping the unfiltered result.
  for(const x of focused){if(x.pitch<48)continue;if(!melodyNotes.some(y=>y.pitch===x.pitch&&Math.min(y.start+y.duration,x.start+x.duration)-Math.max(y.start,x.start)>Math.min(y.duration,x.duration)*.35))melodyNotes.push(x);}
