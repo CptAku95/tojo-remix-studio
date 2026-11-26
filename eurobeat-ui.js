@@ -1,17 +1,19 @@
 import {encodeWav} from "./wav.js";
 import {shareWav} from "./share-wav.js";
+import {transcribe,addOriginalNotes} from "./basic-pitch.js?v=025";
 import {SR,analyze,parseChords,stretch,arrangement,backing,enrichInstrumental,mix} from "./eurobeat-dsp.js?v=024";
 const $=id=>document.getElementById(id);
-const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
-let vocal=null,baseBlob=null,reference=null,refOffset=0,vocalName="track",busy=false,urls=[],blobs=[],vocalURL=null;
+const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebPitch","ebPitchStart","ebPitchSeconds","ebPitchGain","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
+let transcription=null,vocal=null,baseBlob=null,reference=null,refOffset=0,vocalName="track",busy=false,urls=[],blobs=[],vocalURL=null;
 function say(s){$("ebStatus").textContent=s;$("ebSourceStatus").textContent=s;}
-function enable(){for(const id of ids)$(id).disabled=busy;$("ebAnalyze").disabled=busy||!vocal;$("ebBase").disabled=busy||!vocal;$("ebRender").disabled=busy||!vocal||!baseBlob;$("ebAnalyze").disabled=busy||!vocal||(!baseBlob&&!reference);}
-function progress(p){$("ebProgress").value=p;}
-function lock(v){busy=v;$("ebProgress").hidden=!v;if(v)progress(0);enable();}
+function enable(){for(const id of ids)$(id).disabled=busy;$("ebAnalyze").disabled=busy||!vocal;$("ebBase").disabled=busy||!vocal;$("ebRender").disabled=busy||!vocal||!baseBlob;$("ebAnalyze").disabled=busy||!vocal||(!baseBlob&&!reference);$("ebPitch").disabled=busy||!baseBlob;}
+function progress(p){$("ebProgress").value=p;$("ebPitchProgress").value=p;}
+function lock(v){busy=v;$("ebProgress").hidden=!v;$("ebPitchProgress").hidden=!v;if(v)progress(0);enable();}
 function clear(){for(const id of ["ebMix","ebBacking","ebStretched"]){$(id).pause();$(id).removeAttribute("src");$(id).load();}for(const u of urls)URL.revokeObjectURL(u);urls=[];blobs=[];$("ebSaveStatus").textContent="";$("ebOutput").hidden=true;$("ebArrangement").textContent="";}
 async function decode(blob){const ctx=new OfflineAudioContext(2,1,SR),b=await ctx.decodeAudioData(await blob.arrayBuffer());const left=b.getChannelData(0),right=b.getChannelData(Math.min(1,b.numberOfChannels-1));return [left,right];}
 function asWav(ch){return encodeWav({numberOfChannels:2,sampleRate:SR,length:ch[0].length,duration:ch[0].length/SR,getChannelData:i=>ch[i]});}
-function resetAnalysis(){ $("ebAnalysis").textContent="Brak analizy. Możesz wpisać tempo i akordy ręcznie."; $("ebOriginalBpm").value=120;$("ebStart").value=0;$("ebKey").value="";$("ebChords").value="Am F C G";}
+function resetPitch(){transcription=null;$("ebPitchInfo").textContent="Nie rozpoznano jeszcze nut.";$("ebPitchGain").value="0";}
+function resetAnalysis(){resetPitch(); $("ebAnalysis").textContent="Brak analizy. Możesz wpisać tempo i akordy ręcznie."; $("ebOriginalBpm").value=120;$("ebStart").value=0;$("ebKey").value="";$("ebChords").value="Am F C G";}
 async function loadVocal(blob,name,ref=null,offset=0,instrumental=null){
  if(busy)return;lock(true);clear();vocal=null;baseBlob=instrumental;reference=ref;refOffset=offset;resetAnalysis();$("ebBase").value="";$("ebBaseInfo").textContent=baseBlob?"Oryginalny instrumental przeniesiony z separacji.":"Wczytaj instrumental z tej samej separacji.";
  $("ebReference").value="";$("ebRefInfo").textContent=reference?"Używam oryginalnego utworu z separacji.":"Opcjonalnie wczytaj oryginał do analizy.";
@@ -38,6 +40,20 @@ $("ebAnalyze").onclick=async()=>{
   say("Analiza gotowa. Możesz poprawić wyniki przed generowaniem.");
  }catch(e){say("Błąd analizy: "+e.message);}finally{lock(false);}
 };
+$("ebPitch").onclick=async()=>{
+ if(busy||!baseBlob)return;lock(true);resetPitch();
+ try{
+  const start=num("ebPitchStart",0,600),seconds=num("ebPitchSeconds",5,30);
+  const base=await decode(baseBlob);
+  if(start>=base[0].length/SR)throw Error("Początek jest poza utworem.");
+  const t=performance.now();
+  transcription=await transcribe(base,start,seconds,say,progress);
+  const count=transcription.notes.length,used=transcription.notes.filter(n=>n.pitch>=48&&n.pitch<=90).length;
+  $("ebPitchInfo").textContent="Wykryto "+count+" nut ("+used+" w zakresie syntezatora), "+transcription.from.toFixed(1)+"–"+transcription.to.toFixed(1)+" s. Czas: "+((performance.now()-t)/1000).toFixed(1)+" s.";
+  if(used)$("ebPitchGain").value="1";
+  say(count?"Basic Pitch: analiza zakończona.":"Basic Pitch nie rozpoznał nut w tym fragmencie.");
+ }catch(e){resetPitch();say("Basic Pitch: "+e.message);$("ebPitchInfo").textContent="Błąd: "+e.message;}finally{lock(false);}
+};
 function num(id,min,max){const v=Number($(id).value);if(!Number.isFinite(v)||v<min||v>max)throw Error("Nieprawidłowa wartość: "+$(id).previousElementSibling.textContent);return v;}
 $("ebRender").onclick=async()=>{
  if(!vocal||!baseBlob||busy)return;lock(true);clear();
@@ -55,6 +71,8 @@ $("ebRender").onclick=async()=>{
   const extraGain=num("ebIGain",0,2);
   const extra=extraGain>0?await backing(target,chords,n,$("ebStyle").value,p=>progress(.45+p*.5),{sections,preset:$("ebPreset").value,lead:num("ebLead",0,2)}):[new Float32Array(n),new Float32Array(n)];
   const i=enrichInstrumental(original,extra,target,num("ebBaseGain",.4,2),extraGain,extraGain>0?num("ebLowCut",0,.8):0);
+  const pitchGain=num("ebPitchGain",0,2);
+  if(transcription&&pitchGain>0)addOriginalNotes(i,transcription.notes,start,ratio,pitchGain);
   const m=mix(v,i,num("ebVGain",0,2),1);say("Przygotowuję pliki WAV…");
   const name=vocalName+"-"+target+"bpm";
   for(const [data,player,link,suffix] of [[m,"ebMix","ebMixSave","remix"],[i,"ebBacking","ebBackingSave","instrumental"],[v,"ebStretched","ebStretchedSave","vocals"]]){
