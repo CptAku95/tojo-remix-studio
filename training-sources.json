@@ -1,0 +1,45 @@
+{
+  "status": "research-only; no downloaded MIDI verified; no model trained",
+  "sources": [
+    {
+      "name": "Animezen Initial D MIDI",
+      "url": "https://animezen.net/midis/initial-d",
+      "genre": "eurobeat and anime themes",
+      "count": 14,
+      "license": "unverified; third-party arrangements",
+      "approved": false
+    },
+    {
+      "name": "Carlo's MIDI Eurobeat",
+      "url": "https://www.cprato.com/en/midi/genre/eurobeat",
+      "genre": "eurobeat",
+      "count": 2,
+      "license": "free download; no redistribution; training permission unverified",
+      "approved": false
+    },
+    {
+      "name": "Aura Qualic Eurobeat Kick Sounds Essential",
+      "url": "https://auraqualic.bandcamp.com/album/eurobeat-kick-sounds-essential-sample-pack",
+      "genre": "eurobeat",
+      "count": 4,
+      "license": "royalty-free use of demo MIDI; paid; training permission unverified",
+      "approved": false
+    },
+    {
+      "name": "Bangumi Samples Tokyo Drift",
+      "url": "https://bangumisamples.com/b/tokyodrift",
+      "genre": "eurobeat",
+      "count": 5,
+      "license": "royalty-free production use; training permission unverified",
+      "approved": false
+    },
+    {
+      "name": "Snabisch 90s Eurodance MIDI",
+      "url": "https://snabisch.itch.io/typical-1990s-dance-melodies-in-midi-format",
+      "genre": "eurodance",
+      "count": "50+ melodies",
+      "license": "original royalty-free melodies; separate genre, training permission unverified",
+      "approved": false
+    }
+  ]
+}
