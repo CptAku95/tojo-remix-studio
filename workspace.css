@@ -1,0 +1,40 @@
+
+/* Compact mobile workspace: only the active card scrolls. */
+html,body{height:100%;overflow:hidden}
+body{overscroll-behavior:none}
+main.app-shell{height:100%;height:100dvh;max-width:760px;display:flex;flex-direction:column;padding:max(6px,env(safe-area-inset-top)) 10px 0;overflow:hidden}
+.app-shell header{flex:none;padding:5px 4px 9px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.app-shell header h1{font-size:20px;line-height:1.1;margin:2px 0;letter-spacing:-.035em}
+.app-shell header .eyebrow{font-size:9px;letter-spacing:.1em}
+.app-shell header .sub{font-size:10px;margin:0;text-align:right;white-space:nowrap}
+.workspace{min-height:0;flex:1;display:flex;flex-direction:column;overflow:hidden}
+.workspace-panel{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.sub-tabs,.main-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;flex:none}
+.sub-tabs{margin:0 0 7px}
+.main-tabs{padding:7px 0 max(7px,env(safe-area-inset-bottom));border-top:1px solid #303b4c;background:#10141b}
+.sub-tabs button,.main-tabs button{min-height:38px;margin:0;padding:7px 3px;background:#202a37;color:#afbdd0;font-size:12px;line-height:1.2;border:1px solid transparent;white-space:normal}
+.main-tabs button{min-height:48px;font-size:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.main-tabs .tab-symbol{font-size:17px;line-height:1}
+.sub-tabs button[aria-selected=true],.main-tabs button[aria-selected=true]{background:#b7f65b;color:#17220a;border-color:#b7f65b}
+.page-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:0 1px 5px;-webkit-overflow-scrolling:touch}
+.app-shell section{padding:11px;margin:0 0 8px;border-radius:10px}
+.app-shell h2{font-size:15px;margin:0 0 8px}
+.app-shell h3{font-size:14px;margin:0 0 5px}
+.app-shell p{font-size:12px;line-height:1.4;margin:6px 0}
+.app-shell label{font-size:12px;margin:8px 0 4px}
+.app-shell input,.app-shell select{padding:7px 8px;min-height:40px;font-size:16px}
+.app-shell input[type=file]{font-size:13px}
+.app-shell section button,.app-shell .download{min-height:40px;padding:8px;margin-top:8px;font-size:13px}
+.app-shell small{font-size:11px;margin-top:6px}
+.app-shell audio{margin:5px 0}
+.app-shell .stem{padding:9px 0}
+.app-shell details{border:1px solid #303b4c;border-radius:8px;padding:8px;margin:8px 0}
+.app-shell summary{font-size:13px;cursor:pointer;color:#c9d5e6}
+.field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 8px;align-items:start}
+.field-grid>div{min-width:0}
+#tab-diagnostics .page-scroll{display:flex;flex-direction:column}
+#diagnostic-card{flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:4px}
+#diagnostic-card pre{flex:1;min-height:90px;max-height:none;margin:5px 0 8px}
+.diag-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:none}
+.empty-result{color:var(--muted);padding:14px 8px;text-align:center}
+@media(max-width:345px){.app-shell header h1{font-size:17px}.main-tabs button{font-size:11px}.app-shell section{padding:8px}}
