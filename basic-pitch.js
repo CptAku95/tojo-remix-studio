@@ -1,29 +1,69 @@
-// Spotify Basic Pitch 1.0.1: local inference; no audio upload.
-const PACKAGE="https://esm.sh/@spotify/basic-pitch@1.0.1?deps=@tensorflow/tfjs@3.21.0";
-const TF="https://esm.sh/@tensorflow/tfjs@3.21.0";
-const MODEL="https://cdn.jsdelivr.net/npm/@spotify/basic-pitch@1.0.1/model/model.json";
-export async function transcribe(ch,start,seconds,onStatus=()=>{},onProgress=()=>{}){
- const sr=44100,offset=Math.round(start*sr),n=Math.floor(Math.min(seconds*sr,ch[0].length-offset)/2);
- if(n<22050)throw Error("Potrzeba przynajmniej sekundy instrumentalu.");
+// Spotify Basic Pitch ICASSP 2022 ONNX, CPU/WASM.
+// Original model: https://github.com/spotify/basic-pitch (Apache-2.0).
+const MODEL="https://raw.githubusercontent.com/spotify/basic-pitch/main/basic_pitch/saved_models/icassp_2022/nmp.onnx";
+const CDNS=["https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/1.22.0/","https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/"];
+const SR=22050,W=43844,H=36164,PAD=3840,BINS=88;
+const pause=()=>new Promise(r=>setTimeout(r,0));
+const log=s=>window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:"Basic Pitch: "+s}));
+async function bytes(file,urls,what){
+ if(file){log(what+" lokalny: "+file.name+" ("+file.size+" B)");return new Uint8Array(await file.arrayBuffer());}
+ for(const url of urls){try{log(what+" fetch: "+url);const r=await fetch(url);if(!r.ok)throw Error("HTTP "+r.status);return new Uint8Array(await r.arrayBuffer());}catch(e){log(what+" fetch: "+e.message);}}
+ throw Error("Nie można pobrać "+what+". Wskaż pobrany plik lokalny.");
+}
+export function extractNotes(frames,onsets,from,duration){
+ const notes=[],count=frames.length/BINS,dt=H/142/SR;
+ for(let p=0;p<BINS;p++){
+  let begin=-1,sum=0,num=0,quiet=0;
+  function finish(end){if(begin>=0&&end-begin>=6){const a=begin*dt,b=Math.min(duration,end*dt);if(b>a)notes.push({start:from+a,duration:b-a,pitch:p+21,amp:sum/Math.max(1,num)});}begin=-1;sum=0;num=0;quiet=0;}
+  for(let t=0;t<count;t++){const j=t*BINS+p,f=frames[j],o=onsets[j],prev=t?onsets[j-BINS]:0;
+   if(begin>=0&&t-begin>=6&&o>.55&&prev<=.55&&f>.3)finish(t);
+   if(begin<0&&(f>.45||o>.5&&f>.25))begin=t;
+   if(begin>=0){if(f<.3){quiet++;if(quiet>=4)finish(t-quiet+1);}else{quiet=0;sum+=f;num++;}}
+  }finish(count-quiet);
+ }
+ return notes.sort((a,b)=>a.start-b.start);
+}
+export async function transcribe(ch,start,seconds,onStatus=()=>{},onProgress=()=>{},files={}){
+ let stage="przygotowanie audio",session;
+ const say=s=>{stage=s;onStatus(s);log(s);};
+ try{
+ const offset=Math.round(start*44100),n=Math.floor(Math.min(seconds*44100,ch[0].length-offset)/2);
+ if(n<SR)throw Error("Potrzeba przynajmniej sekundy instrumentalu.");
  const mono=new Float32Array(n);
  for(let i=0;i<n;i++){const p=offset+i*2;mono[i]=(ch[0][p]+ch[1][p]+ch[0][p+1]+ch[1][p+1])*.25;}
- onStatus("Ładuję bibliotekę Basic Pitch…");
- const [tf,bp]=await Promise.all([import(TF),import(PACKAGE)]);
- if(!await tf.setBackend("cpu"))throw Error("Nie udało się uruchomić procesora TensorFlow.");
- await tf.ready();
- onStatus("Pobieram model Basic Pitch…");
- const model=await tf.loadGraphModel(MODEL);
- const frames=[],onsets=[];
- try{
-  const pitch=new bp.BasicPitch(Promise.resolve(model));
-  onStatus("Rozpoznaję nuty oryginalnego instrumentalu…");
-  await pitch.evaluateModel(mono,(f,o)=>{for(const row of f)frames.push(row);for(const row of o)onsets.push(row);},onProgress);
-  const notes=bp.noteFramesToTime(bp.outputToNotesPoly(frames,onsets,.35,.30,7))
-   .map(x=>({start:x.startTimeSeconds+start,duration:x.durationSeconds,pitch:x.pitchMidi,amp:x.amplitude}))
-   .filter(x=>Number.isFinite(x.start)&&Number.isFinite(x.duration)&&Number.isFinite(x.pitch)&&Number.isFinite(x.amp)&&x.duration>0&&x.start<start+n/22050&&x.pitch>=21&&x.pitch<=108)
-   .sort((a,b)=>a.start-b.start);
-  return {notes,from:start,to:start+n/22050};
- }finally{model.dispose();}
+ say("Import ONNX Runtime 1.22.0 (CPU)");let ort,last;
+ for(const cdn of CDNS)try{ort=await import(cdn+"ort.wasm.bundle.min.mjs");break;}catch(e){last=e;log("Import nieudany: "+e.message);}
+ if(!ort)throw last||Error("Import ORT nieudany");
+ say("Odczyt runtime WASM");
+ const wasm=await bytes(files.wasm,CDNS.map(c=>c+"ort-wasm-simd-threaded.wasm"),"runtime WASM");
+ if(wasm[0]!==0||wasm[1]!==97||wasm[2]!==115||wasm[3]!==109)throw Error("Nieprawidłowy plik WASM");
+ ort.env.wasm.numThreads=1;ort.env.wasm.proxy=false;ort.env.wasm.wasmBinary=wasm;
+ ort.env.wasm.wasmPaths={mjs:CDNS[0]+"ort-wasm-simd-threaded.mjs"};
+ say("Odczyt modelu Basic Pitch ONNX");
+ const model=await bytes(files.model,[MODEL],"model ONNX");
+ if(model.length<10000||model[0]!==8)throw Error("Plik nie wygląda jak model ONNX");
+ say("Tworzenie sesji Basic Pitch");session=await ort.InferenceSession.create(model,{executionProviders:["wasm"],graphOptimizationLevel:"basic"});
+ log("Wejścia: "+session.inputNames.join(", ")+"; wyjścia: "+session.outputNames.join(", "));
+ const noteName="StatefulPartitionedCall:1",onsetName="StatefulPartitionedCall:2";
+ if(!session.outputNames.includes(noteName)||!session.outputNames.includes(onsetName))throw Error("Nieznany format wyjść Basic Pitch");
+ const chunks=Math.ceil(n/H),frames=new Float32Array(chunks*142*BINS),onsets=new Float32Array(frames.length);
+ say("Rozpoznawanie nut");
+ for(let k=0;k<chunks;k++){
+  const block=new Float32Array(W),pos=k*H-PAD;
+  for(let i=0;i<W;i++)if(pos+i>=0&&pos+i<n)block[i]=mono[pos+i];
+  const input=new ort.Tensor("float32",block,[1,W,1]);let out;
+  try{
+   const t=performance.now();out=await session.run({[session.inputNames[0]]:input},[noteName,onsetName]);
+   const f=out[noteName],o=out[onsetName];
+   if(f.dims.join(",")!=="1,172,88"||o.dims.join(",")!=="1,172,88")throw Error("Nieoczekiwane wymiary: "+f.dims.join("×"));
+   frames.set(f.data.subarray(15*BINS,157*BINS),k*142*BINS);onsets.set(o.data.subarray(15*BINS,157*BINS),k*142*BINS);
+   log("Fragment "+(k+1)+"/"+chunks+" · "+((performance.now()-t)/1000).toFixed(2)+" s");
+  }finally{input.dispose?.();if(out)for(const value of Object.values(out))value.dispose?.();}
+  onProgress((k+1)/chunks);await pause();
+ }
+ const count=Math.min(chunks*142,Math.ceil(n/H*142)),notes=extractNotes(frames.subarray(0,count*BINS),onsets.subarray(0,count*BINS),start,n/SR);
+ log("Wykryto "+notes.length+" nut.");return {notes,from:start,to:start+n/SR};
+ }catch(e){log("BŁĄD ["+stage+"]: "+e.message);throw Error(stage+": "+e.message);}finally{if(session)try{await session.release();}catch{}}
 }
 export function addOriginalNotes(extra,notes,start,ratio,gain){
  const sr=44100,n=extra[0].length;if(gain<=0)return;
