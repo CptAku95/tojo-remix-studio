@@ -81,8 +81,20 @@ export function arrangement(v,bpm){
  const sorted=energy.slice().sort((a,b)=>a-b),ref=sorted[Math.floor((sorted.length-1)*.75)]||.01,peak=Math.max(...energy,1e-8);
  return energy.map((e,i)=>{const silent=e<Math.max(.004,peak*.075),loud=e>Math.max(.008,ref*.8);return {bar:i+1,type:silent?"Riff / przerwa":loud?"Mocna sekcja":(energy[i+1]||0)>e*1.5?"Narastanie":"Zwrotka",energy:e,lead:silent?1:loud?.24:.12,power:silent||loud?1:.70};});
 }
+// Pick the original bass pitch closest to this sixteenth-note cell.
+// Preserve pitch class, with octave alternation in Eurobeat rhythm.
+export function bassAt(notes,t,step){
+ let best=null,score=-Infinity;
+ for(const n of notes){
+  const overlap=Math.min(t+step,n.start+n.duration)-Math.max(t,n.start);
+  if(overlap<=0)continue;
+  const value=overlap/step+.25*(n.amp||0)-.003*n.pitch;
+  if(value>score){score=value;best=n;}
+ }
+ return best?best.pitch:null;
+}
 export async function backing(bpm,chords,length,style,onProgress=()=>{},opts={}){
- const out=[new Float32Array(length),new Float32Array(length)],beat=60/bpm,sections=opts.sections||[],preset=opts.preset||"classic",dark=preset==="dark",race=preset==="race",leadAmount=Number(opts.lead??1);
+ const out=[new Float32Array(length),new Float32Array(length)],beat=60/bpm,sections=opts.sections||[],sourceBass=opts.sourceBass||null,preset=opts.preset||"classic",dark=preset==="dark",race=preset==="race",leadAmount=Number(opts.lead??1);
  let seed=123456;const noise=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/2147483648-1;};
  function add(at,dur,amp,pan,voice){const start=Math.round(at*SR),n=Math.min(Math.round(dur*SR),length-start),l=Math.sqrt((1-pan)/2)*amp,r=Math.sqrt((1+pan)/2)*amp;for(let i=0;i<n;i++){const v=voice(i/SR);out[0][start+i]+=v*l;out[1][start+i]+=v*r;}}
  const env=(t,d,a=.004)=>Math.min(1,t/a)*Math.max(0,Math.min(1,(d-t)/.022));
@@ -93,7 +105,12 @@ export async function backing(bpm,chords,length,style,onProgress=()=>{},opts={})
   add(at,.26,.82,0,t=>Math.sin(TAU*(48*t+2.6*(1-Math.exp(-t*65))))*Math.exp(-t*15)+.10*noise()*Math.exp(-t*125));
   if(b%2===1){let last=0;add(at,.19,.32,0,t=>{const n=noise(),hp=n-last;last=n;return (.63*hp+.27*Math.sin(TAU*185*t))*Math.exp(-t*25);});}
   for(let j=0;j<(race?4:2);j++){let prev=0;const frac=j/(race?4:2),off=frac===.5;add(at+frac*beat,off?.17:.055,off?.17:.065,off?.4:-.35,t=>{const n=noise(),v=(n-prev)*.55;prev=n;return v*Math.exp(-t*(off?22:78));});}
-  for(let j=0;j<4;j++){const d=beat*(race?.235:.21),h=freq(root+bass[(b%4)*4+j]),o=oscillator("saw",h),sub=oscillator("square",h/2);let low=0;add(at+j*beat/4,d,.36*pow,0,t=>{const x=o();low+=(x-low)*(.035+.24*Math.exp(-t*26));return env(t,d)*(j===0?Math.min(1,.25+t*16):1)*(.65*low+.35*sub());});}
+  for(let j=0;j<4;j++){
+   let pitch=root+bass[(b%4)*4+j];
+   if(sourceBass){const t=sourceBass.start+(at+j*beat/4)*sourceBass.ratio,step=beat/4*sourceBass.ratio;
+    if(t>=sourceBass.from&&t+step<=sourceBass.to+.02){const original=bassAt(sourceBass.notes,t,step);if(original===null)continue;pitch=original;while(pitch<33)pitch+=12;while(pitch>47)pitch-=12;if(j%2===1)pitch+=12;}
+   }
+   const d=beat*(race?.235:.21),h=freq(pitch),o=oscillator("saw",h),sub=oscillator("square",h/2);let low=0;add(at+j*beat/4,d,.36*pow,0,t=>{const x=o();low+=(x-low)*(.035+.24*Math.exp(-t*26));return env(t,d)*(j===0?Math.min(1,.25+t*16):1)*(.65*low+.35*sub());});}
   if(style!=="rhythm"){
    const d=beat*(race?.36:.42);for(const interval of [0,third,7])synth(at+beat*.5,d,freq(60+ch.root+interval),.105*pow,interval===0?-.5:.5,"brass");
    if(style==="lead"||style==="auto"){
