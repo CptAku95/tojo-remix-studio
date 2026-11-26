@@ -1,9 +1,9 @@
 import {encodeWav} from "./wav.js";
 import {shareWav} from "./share-wav.js";
-import {transcribe,addOriginalNotes} from "./basic-pitch.js?v=025";
+import {transcribe,addOriginalNotes} from "./basic-pitch.js?v=026";
 import {SR,analyze,parseChords,stretch,arrangement,backing,enrichInstrumental,mix} from "./eurobeat-dsp.js?v=024";
 const $=id=>document.getElementById(id);
-const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebPitch","ebPitchStart","ebPitchSeconds","ebPitchGain","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
+const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebPitch","ebPitchModel","ebPitchWasm","ebPitchStart","ebPitchSeconds","ebPitchGain","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
 let transcription=null,vocal=null,baseBlob=null,reference=null,refOffset=0,vocalName="track",busy=false,urls=[],blobs=[],vocalURL=null;
 function say(s){$("ebStatus").textContent=s;$("ebSourceStatus").textContent=s;}
 function enable(){for(const id of ids)$(id).disabled=busy;$("ebAnalyze").disabled=busy||!vocal;$("ebBase").disabled=busy||!vocal;$("ebRender").disabled=busy||!vocal||!baseBlob;$("ebAnalyze").disabled=busy||!vocal||(!baseBlob&&!reference);$("ebPitch").disabled=busy||!baseBlob;}
@@ -47,7 +47,7 @@ $("ebPitch").onclick=async()=>{
   const base=await decode(baseBlob);
   if(start>=base[0].length/SR)throw Error("Początek jest poza utworem.");
   const t=performance.now();
-  transcription=await transcribe(base,start,seconds,say,progress);
+  transcription=await transcribe(base,start,seconds,say,progress,{model:$("ebPitchModel").files[0],wasm:$("ebPitchWasm").files[0]||($("wasmFile").files[0]?.name==="ort-wasm-simd-threaded.wasm"?$("wasmFile").files[0]:null)});
   const count=transcription.notes.length,used=transcription.notes.filter(n=>n.pitch>=48&&n.pitch<=90).length;
   $("ebPitchInfo").textContent="Wykryto "+count+" nut ("+used+" w zakresie syntezatora), "+transcription.from.toFixed(1)+"–"+transcription.to.toFixed(1)+" s. Czas: "+((performance.now()-t)/1000).toFixed(1)+" s.";
   if(used)$("ebPitchGain").value="1";
