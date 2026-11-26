@@ -31,6 +31,8 @@ export async function transcribe(ch,start,seconds,onStatus=()=>{},onProgress=()=
  if(n<SR)throw Error("Potrzeba przynajmniej sekundy instrumentalu.");
  const mono=new Float32Array(n);
  for(let i=0;i<n;i++){const p=offset+i*2;mono[i]=(ch[0][p]+ch[1][p]+ch[0][p+1]+ch[1][p+1])*.25;}
+ let peak=0,sq=0;for(const v of mono){peak=Math.max(peak,Math.abs(v));sq+=v*v;}
+ log("Audio mono: peak "+peak.toFixed(5)+" · RMS "+Math.sqrt(sq/n).toFixed(5));
  say("Import ONNX Runtime 1.22.0 (CPU)");let ort,last;
  for(const cdn of CDNS)try{ort=await import(cdn+"ort.wasm.bundle.min.mjs");break;}catch(e){last=e;log("Import nieudany: "+e.message);}
  if(!ort)throw last||Error("Import ORT nieudany");
@@ -46,6 +48,18 @@ export async function transcribe(ch,start,seconds,onStatus=()=>{},onProgress=()=
  log("Wejścia: "+session.inputNames.join(", ")+"; wyjścia: "+session.outputNames.join(", "));
  const noteName="StatefulPartitionedCall:1",onsetName="StatefulPartitionedCall:2";
  if(!session.outputNames.includes(noteName)||!session.outputNames.includes(onsetName))throw Error("Nieznany format wyjść Basic Pitch");
+ say("Test kontrolny A4 / 440 Hz");
+ const tone=new Float32Array(W);
+ for(let i=PAD;i<Math.min(W,PAD+SR);i++){const t=(i-PAD)/SR,env=Math.max(0,Math.min(1,t/.02,(1-t)/.08));tone[i]=env*(.45*Math.sin(2*Math.PI*440*t)+.12*Math.sin(2*Math.PI*880*t)+.05*Math.sin(2*Math.PI*1320*t));}
+ const testInput=new ort.Tensor("float32",tone,[1,W,1]);let testOut,testOk=false;
+ try{
+  testOut=await session.run({[session.inputNames[0]]:testInput},[noteName,onsetName]);
+  const scores=new Float64Array(BINS),f=testOut[noteName].data;
+  for(let t=20;t<85;t++)for(let p=0;p<BINS;p++)scores[p]+=f[t*BINS+p];
+  const ranked=Array.from(scores,(v,p)=>({p:p+21,v:v/65})).sort((a,b)=>b.v-a.v);
+  testOk=ranked[0].p===69;
+  log("TEST A4: oczekiwane MIDI 69; top "+ranked.slice(0,5).map(x=>x.p+":"+x.v.toFixed(3)).join(" / ")+" · "+(testOk?"OK":"UWAGA"));
+ }finally{testInput.dispose?.();if(testOut)for(const x of Object.values(testOut))x.dispose?.();}
  const chunks=Math.ceil(n/H),frames=new Float32Array(chunks*142*BINS),onsets=new Float32Array(frames.length);
  say("Rozpoznawanie nut");
  for(let k=0;k<chunks;k++){
@@ -62,7 +76,10 @@ export async function transcribe(ch,start,seconds,onStatus=()=>{},onProgress=()=
   onProgress((k+1)/chunks);await pause();
  }
  const count=Math.min(chunks*142,Math.ceil(n/H*142)),notes=extractNotes(frames.subarray(0,count*BINS),onsets.subarray(0,count*BINS),start,n/SR);
- log("Wykryto "+notes.length+" nut.");return {notes,from:start,to:start+n/SR};
+ const hist=new Map();for(const note of notes)hist.set(note.pitch,(hist.get(note.pitch)||0)+1);
+ const pitches=[...hist.keys()].sort((a,b)=>a-b),range=pitches.length?[pitches[0],pitches.at(-1)]:null;
+ log("Wykryto "+notes.length+" nut; zakres MIDI "+(range?range.join("–"):"brak")+"; histogram "+pitches.map(p=>p+":"+hist.get(p)).join(" "));
+ return {notes,from:start,to:start+n/SR,range,testOk};
  }catch(e){log("BŁĄD ["+stage+"]: "+e.message);throw Error(stage+": "+e.message);}finally{if(session)try{await session.release();}catch{}}
 }
 export function addOriginalNotes(extra,notes,start,ratio,gain){
@@ -70,7 +87,7 @@ export function addOriginalNotes(extra,notes,start,ratio,gain){
  // The detected notes retain their relative timing and pitch in the remix.
  for(const note of notes){
   const a=(note.start-start)/ratio,b=(note.start+note.duration-start)/ratio;
-  if(b<=0||a>=n/sr||note.pitch<48||note.pitch>90)continue;
+  if(b<=0||a>=n/sr||note.pitch<21||note.pitch>108)continue;
   const first=Math.max(0,Math.round(a*sr)),last=Math.min(n,Math.round(b*sr)),h=440*2**((note.pitch-69)/12),amp=.085*gain*Math.min(1,Math.max(.12,note.amp));
   for(let i=first;i<last;i++){const t=i/sr-a,release=b-i/sr,env=Math.min(1,t/.012,release/.035),p=2*Math.PI*h*t;
    const x=(Math.sin(p)+.44*Math.sin(p*2)+.23*Math.sin(p*3)+.10*Math.sin(p*4))*.55*amp*Math.max(0,env);
