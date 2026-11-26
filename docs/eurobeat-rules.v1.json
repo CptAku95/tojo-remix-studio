@@ -1,0 +1,231 @@
+{
+  "schemaVersion": 1,
+  "status": "proposed_not_wired",
+  "source": "docs/eurobeat-knowledge-base.md",
+  "clock": {
+    "meter": [
+      4,
+      4
+    ],
+    "stepsPerBar": 16,
+    "defaultBpm": 156,
+    "racingBpm": 160,
+    "swing": 0,
+    "phraseBars": [
+      4,
+      8,
+      16
+    ]
+  },
+  "sourcePolicy": {
+    "requireOriginalInstrumental": true,
+    "sharedStemTimeMapping": true,
+    "allowUnrelatedBacking": false,
+    "preferDetectedBass": true,
+    "uncertainLead": "preserve_source_or_manual_edit"
+  },
+  "patterns": {
+    "kick": [
+      0,
+      4,
+      8,
+      12
+    ],
+    "snare": [
+      4,
+      12
+    ],
+    "openHat": [
+      2,
+      6,
+      10,
+      14
+    ],
+    "closedHat": [
+      0,
+      1,
+      3,
+      4,
+      5,
+      7,
+      8,
+      9,
+      11,
+      12,
+      13,
+      15
+    ],
+    "upbeat": [
+      2,
+      6,
+      10,
+      14
+    ],
+    "bassOctaves": [
+      0,
+      12,
+      0,
+      12
+    ],
+    "fill": {
+      "phraseBars": 4,
+      "steps": [
+        13,
+        14,
+        15
+      ]
+    }
+  },
+  "sound": {
+    "kick": {
+      "decayMs": [
+        100,
+        160
+      ],
+      "startHz": 140,
+      "endHz": 48
+    },
+    "bass": {
+      "fmRatio": 2,
+      "gate": [
+        0.55,
+        0.8
+      ],
+      "releaseMs": [
+        15,
+        35
+      ],
+      "sidechainRecoveryMs": [
+        60,
+        100
+      ]
+    },
+    "brass": {
+      "detuneCents": [
+        -9,
+        0,
+        9
+      ],
+      "attackMs": [
+        3,
+        12
+      ],
+      "releaseMs": [
+        25,
+        70
+      ],
+      "scoopCents": [
+        20,
+        70
+      ]
+    },
+    "pad": {
+      "highpassHz": 200
+    },
+    "vocal": {
+      "compressionRatio": 2.5,
+      "plateSeconds": 0.7
+    }
+  },
+  "sections": {
+    "intro": {
+      "bars": 8,
+      "drums": 0.55,
+      "bass": 0.55,
+      "upbeat": 0.4,
+      "hook": 0.35,
+      "pad": 0.7
+    },
+    "sabi": {
+      "bars": 8,
+      "drums": 1,
+      "bass": 1,
+      "upbeat": 0.8,
+      "hook": 1,
+      "pad": 0.65
+    },
+    "verse": {
+      "bars": [
+        8,
+        16
+      ],
+      "drums": 0.85,
+      "bass": 0.85,
+      "upbeat": 0.55,
+      "hook": 0.08,
+      "pad": 0.4
+    },
+    "prechorus": {
+      "bars": 8,
+      "drums": 0.9,
+      "bass": 0.9,
+      "upbeat": 0.7,
+      "hook": 0.2,
+      "pad": 0.8
+    },
+    "chorus": {
+      "bars": [
+        8,
+        16
+      ],
+      "drums": 1,
+      "bass": 1,
+      "upbeat": 0.85,
+      "hook": 0.3,
+      "pad": 0.8
+    },
+    "bridge": {
+      "bars": 8,
+      "drums": 0.55,
+      "bass": 0.55,
+      "upbeat": 0.35,
+      "hook": 0.5,
+      "pad": 0.8
+    }
+  },
+  "hook": {
+    "motifBars": [
+      2,
+      4
+    ],
+    "targetBars": 8,
+    "variation": "A_Aprime",
+    "grid": [
+      8,
+      16
+    ],
+    "retainSourceContour": true,
+    "allowAnswers": true,
+    "avoidVocalOverlap": true
+  },
+  "mix": {
+    "peakDbfs": -1,
+    "center": [
+      "kick",
+      "bass",
+      "vocal"
+    ],
+    "wide": [
+      "brass",
+      "pad"
+    ],
+    "roleBuses": true
+  },
+  "acceptance": [
+    "source_identity",
+    "recognizable_hook",
+    "no_rhythm_conflict",
+    "vocal_clarity",
+    "timing",
+    "finite_samples",
+    "iphone_stability"
+  ],
+  "provenance": {
+    "tempo": "engineering default inspired by S13",
+    "groove": "S1 S7 S13",
+    "arrangement": "S6 S13",
+    "hook": "S3 S4 S8",
+    "sound": "S1 S2 S5 S9 S11 S12",
+    "numericPresets": "TOJO proposed starting points; not measured"
+  }
+}
