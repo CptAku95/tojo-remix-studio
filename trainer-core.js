@@ -1,0 +1,30 @@
+(()=>{"use strict";
+const ROLES=["drums","bass","lead","harmony"],VERSION=1;
+function parseMidi(buffer){
+ const d=new DataView(buffer),u=new Uint8Array(buffer);let p=0,limit=u.length;
+ const need=n=>{if(p+n>limit)throw Error("Niepełny plik MIDI");};
+ const byte=()=>{need(1);return u[p++]},word=()=>{need(2);const x=d.getUint16(p);p+=2;return x},long=()=>{need(4);const x=d.getUint32(p);p+=4;return x},tag=()=>{need(4);return String.fromCharCode(...u.slice(p,p+=4))},vlq=()=>{let v=0;for(let i=0;i<4;i++){let x=byte();v=v*128+(x&127);if(!(x&128))return v}throw Error("Nieprawidłowy VLQ")};
+ if(tag()!=="MThd")throw Error("Nie jest to Standard MIDI File");const h=long();if(h<6||p+h>limit)throw Error("Nagłówek MIDI");const end=p+h,format=word(),tracks=word(),ppq=word();p=end;if(format>1||!tracks||tracks>256||!ppq||(ppq&32768))throw Error("Obsługiwane MIDI 0/1 z PPQ");
+ const notes=[],tempos=[],meters=[];let last=0;
+ for(let t=0;t<tracks;t++){limit=u.length;if(tag()!=="MTrk")throw Error("Brak MTrk");let size=long();if(p+size>limit)throw Error("Uszkodzony MTrk");limit=p+size;let tick=0,run=0,name="",program=Array(16).fill(0),active=new Map();
+ const finish=(a,stop)=>{if(stop>a.tick){notes.push({...a,end:stop,track:t,name});if(notes.length>250000)throw Error("Za dużo nut")}};
+ while(p<limit){tick+=vlq();if(tick>ppq*4*4096)throw Error("MIDI przekracza 4096 taktów");let s=byte();if(s<128){if(!run)throw Error("Brak running status");p--;s=run}else if(s<240)run=s;else run=0;
+ if(s===255){const type=byte(),n=vlq();need(n);if(type===3)name=new TextDecoder().decode(u.slice(p,p+n));if(type===81&&n===3){let us=u[p]*65536+u[p+1]*256+u[p+2];if(us)tempos.push({tick,bpm:60000000/us})}if(type===88&&n>=2)meters.push({tick,num:u[p],den:2**u[p+1]});p+=n;if(type===47)break;continue;}
+ if(s===240||s===247){const n=vlq();need(n);p+=n;continue}if(s>=240)throw Error("Nieobsługiwany event systemowy");
+ const ch=s&15,kind=s&240,a=byte(),b=(kind===192||kind===208)?0:byte();if(a>127||b>127)throw Error("Nieprawidłowe dane MIDI");if(kind===192)program[ch]=a;
+ if(kind===144&&b){const k=ch*128+a,queue=active.get(k)||[];queue.push({tick,pitch:a,vel:b,ch,program:program[ch]});active.set(k,queue)}
+ else if(kind===128||(kind===144&&!b)){const k=ch*128+a,queue=active.get(k);if(queue?.length){finish(queue.shift(),tick);if(!queue.length)active.delete(k)}}
+ }for(const q of active.values())for(const a of q)finish(a,tick);last=Math.max(last,tick);p=limit;}
+ if(meters.some(m=>m.num!==4||m.den!==4))throw Error("Trainer v1 obsługuje metrum 4/4");if(!notes.length)throw Error("Brak nut");tempos.sort((a,b)=>a.tick-b.tick);return {ppq,notes,tempos,meters,last,bpm:tempos[0]?.tick===0?tempos[0].bpm:120};
+}
+function role(n){const s=n.name.toLowerCase(),p=n.program;if(n.ch===9||/\b(drum|drums|percussion|kick|snare|hihat)\b/.test(s))return "drums";if(/\b(bass|basso)\b/.test(s)||(p>=32&&p<=39))return "bass";if(/\b(pad|chord|chords|strings|harmony|piano|keys)\b/.test(s)||(p>=48&&p<=55)||(p>=88&&p<=95))return "harmony";return "lead"}
+function extract(m){const q=m.ppq/4,total=Math.max(1,Math.ceil(Math.max(...m.notes.map(n=>n.tick))/ (q*16)+1e-9));const bars=Array.from({length:total},()=>({drums:[],bass:[],lead:[],harmony:[]}));for(const n of m.notes){let step=Math.round(n.tick/q),bar=Math.floor(step/16);if(bar>=bars.length)continue;bars[bar][role(n)].push({step:step%16,pitch:n.pitch,len:Math.max(1,Math.min(32,Math.round((n.end-n.tick)/q))),vel:Math.max(16,Math.min(127,Math.round(n.vel/16)*16))})}
+ const roots=bars.map(b=>{const bass=b.bass.slice().sort((a,c)=>a.step-c.step||a.pitch-c.pitch);if(bass.length)return bass[0].pitch%12;const hist=Array(12).fill(0);for(const n of [...b.harmony,...b.lead])hist[n.pitch%12]+=n.len;return hist.some(Boolean)?hist.indexOf(Math.max(...hist)):null});let root=roots.find(x=>x!==null)??0;
+ return bars.map((b,i)=>{root=roots[i]??root;const out={};for(const r of ROLES){const base=(r==="bass"?36:60)+root;out[r]=b[r].sort((a,c)=>a.step-c.step||a.pitch-c.pitch).map(n=>({step:n.step,p:r==="drums"?n.pitch:n.pitch-base,l:n.len,v:n.vel}))}return out});
+}
+const dict=()=>Object.create(null);const inc=(d,k)=>{d[k]=(d[k]||0)+1};
+function train(songs){const model={version:VERSION,kind:"tojo-step-markov",songs:songs.length,bars:0,notes:0,roles:{}};for(const r of ROLES)model.roles[r]={steps:Array.from({length:16},dict),trans:dict(),events:0};for(const song of songs){for(const bar of song.bars){model.bars++;for(const r of ROLES){const rm=model.roles[r];if(!bar[r].length)continue;let prev="start";for(let s=0;s<16;s++){const group=bar[r].filter(n=>n.step===s).slice(0,8).map(({p,l,v})=>[p,l,v]);const token=JSON.stringify(group);inc(rm.steps[s],token);const key=s+"|"+prev;if(!rm.trans[key])rm.trans[key]=dict();inc(rm.trans[key],token);prev=token;rm.events+=group.length;model.notes+=group.length}}}}return model}
+function generate(model,roots,seed=1234,variation=.35){if(model?.kind!=="tojo-step-markov"||model.version!==VERSION)throw Error("Nieobsługiwany model");let x=seed>>>0;const rand=()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296};const pick=d=>{const a=Object.entries(d||{}),sum=a.reduce((s,[,v])=>s+v,0);if(!sum)return "[]";let v=rand()*sum;for(const [k,w] of a){v-=w;if(v<0)return k}return a[a.length-1][0]};
+ const events=[];for(let b=0;b<roots.length;b++)for(const r of ROLES){let prev="start";const rm=model.roles[r];for(let s=0;s<16;s++){const token=pick(rand()>=variation&&rm.trans[s+"|"+prev]||rm.steps[s]);prev=token;for(const [p,l,v] of JSON.parse(token)){const pitch=r==="drums"?p:(r==="bass"?36:60)+roots[b]+p;if(pitch>=0&&pitch<=127)events.push({role:r,step:b*16+s,pitch,length:l,velocity:v})}}}return events.sort((a,b)=>a.step-b.step||a.pitch-b.pitch)}
+globalThis.TojoTrainer={parseMidi,extract,train,generate,ROLES,VERSION};
+})();
