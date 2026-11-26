@@ -1,0 +1,125 @@
+{
+  "source": "https://github.com/ss16118/EuroGen",
+  "commit": "3b4fbba19a3f07289cfdceecde85f2e4f1275260",
+  "rights": "Public third-party transcriptions, rights unverified; research model; no MIDI redistributed.",
+  "method": "Song-balanced per-step/transition distributions, exact tokens supported by >=2 songs, recover only complete 4/4 spans in mixed-meter track. Not a held-out quality benchmark.",
+  "songs": 12,
+  "rawNotes": 117661,
+  "usedNotes": 117631,
+  "bars": 1487,
+  "modelEvents": 113895,
+  "files": [
+    {
+      "file": "Dave Rodgers - Déjà Vu.mid",
+      "used": 16899,
+      "raw": 16899,
+      "bpm": 154.99990958338608,
+      "sha": "0f597e379ee925b3e51147656a6bf8c050bd8806",
+      "bars": 159
+    },
+    {
+      "file": "Initial D - Blazing Beat.mid",
+      "used": 12254,
+      "raw": 12254,
+      "bpm": 140.00014000014,
+      "sha": "2bb6dd25428998fc12efb173359a9f120950da54",
+      "bars": 181
+    },
+    {
+      "file": "Initial D - Burning up For You.mid",
+      "used": 20255,
+      "raw": 20255,
+      "bpm": 152.00032426735845,
+      "sha": "3bc94039ad63264f6f4f749332e912991695fc5d",
+      "bars": 186
+    },
+    {
+      "file": "Initial D - Gamble Rumble.mid",
+      "used": 14499,
+      "raw": 14499,
+      "bpm": 150,
+      "sha": "60c1a31d5541d2b5ae6a102048667479f416ef17",
+      "bars": 169
+    },
+    {
+      "file": "Initial D - Maybe Tonight Remix.mid",
+      "used": 15941,
+      "raw": 15941,
+      "bpm": 150,
+      "sha": "0c483f372a3a4f4b5189c6da1c81ee41ab7dda52",
+      "bars": 173
+    },
+    {
+      "file": "Initial D - Night of Fire.mid",
+      "used": 16263,
+      "raw": 16293,
+      "bpm": 160,
+      "sha": "7346ecec1ffbabf5e04a3208036a3b395d261d65",
+      "bars": 193
+    },
+    {
+      "file": "Initial D - Rage You Dreams.mid",
+      "used": 15579,
+      "raw": 15579,
+      "bpm": 123.00022140039852,
+      "sha": "2e890a9d1173bb0dddb7fa95fa553c56ee67db91",
+      "bars": 135
+    },
+    {
+      "file": "Initial D - Spaceboy.mid",
+      "used": 3849,
+      "raw": 3849,
+      "bpm": 150,
+      "sha": "b0cbf6a1feb7fcbea9ce1cbfa8c699a0dd7471f0",
+      "bars": 171
+    },
+    {
+      "file": "Marko Polo - Speedy Speed Boy (Initial-D).mid",
+      "used": 1222,
+      "raw": 1222,
+      "bpm": 151.99993920002433,
+      "sha": "aa4c63eab20c9b88fa3e8d79397c97e3be7489dc",
+      "bars": 75
+    },
+    {
+      "file": "Max Coveri - Running in the 90s.mid",
+      "used": 442,
+      "raw": 442,
+      "bpm": 158.49995641251198,
+      "sha": "6fc7d2a86d1e291803902c0d82438c4a7648e466",
+      "bars": 25
+    },
+    {
+      "file": "Virginelle - Baby Come Back.mid",
+      "used": 316,
+      "raw": 316,
+      "bpm": 150,
+      "sha": "a7afef8b04a796fb2111cc56fc1a9ae011c237d2",
+      "bars": 8
+    },
+    {
+      "file": "rose love love.mid",
+      "used": 112,
+      "raw": 112,
+      "bpm": 135.9000319365075,
+      "sha": "36cf63cee29f82ad7aa7b48c664a59e2d750c958",
+      "bars": 12
+    }
+  ],
+  "comparison": {
+    "old": {
+      "drums": 96,
+      "bass": 217,
+      "lead": 77,
+      "harmony": 22
+    },
+    "new": {
+      "drums": 87,
+      "bass": 183,
+      "lead": 100,
+      "harmony": 33
+    },
+    "test": "20 seeds, 32 bars each, mean generated event count per role; density only"
+  },
+  "demoEvents": 404
+}
