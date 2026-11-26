@@ -14,6 +14,7 @@ const prior=read(RUNKEY);
 $("log").textContent=read(LOGKEY).slice(-10000);
 const log=msg=>{$("log").textContent=($("log").textContent+new Date().toLocaleTimeString()+" "+msg+"\n").slice(-12000);store(LOGKEY,$("log").textContent);$("log").scrollTop=$("log").scrollHeight;};
 if(prior){log("Poprzednia sesja przerwana podczas: "+prior);$("status").textContent="Poprzednia sesja przerwana: "+prior;mark("");}
+window.addEventListener("tojo-diagnostic",e=>log(String(e.detail)));
 const status=msg=>{$("status").textContent=msg;log(msg);};
 const errorText=e=>e?.message||String(e);
 function setBusy(b){busy=b;for(const id of controls)$(id).disabled=b;$("run").disabled=b||!input;$("progress").hidden=!b;if(b)$("progress").removeAttribute("value");}
@@ -102,4 +103,4 @@ $("clearLog").onclick=()=>{
  try{localStorage.removeItem(LOGKEY);}catch{}
  $("copy").textContent="Kopiuj log";
 };
-log("Tojo v0.2.5 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
+log("Tojo v0.2.6 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
