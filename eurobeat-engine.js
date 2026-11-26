@@ -80,13 +80,13 @@ function voice(e,preset,noise){
  default:return ()=>0;
  }
 }
-export async function renderArrangement(plan,length,{preset="classic",gains={},solo="all"}={},onProgress=()=>{}){
+export async function renderArrangement(plan,length,{preset="classic",gains={},solo="all",sampleBank=null,onSampleStats=()=>{}}={},onProgress=()=>{}){
  // Process one role at a time: independent stereo bus, no six full stereo arrays in memory.
- const out=[new Float32Array(length),new Float32Array(length)];let seed=1234567;
+ const out=[new Float32Array(length),new Float32Array(length)];let seed=1234567,sampled=0,fallback=0;
  const noise=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/2147483648-1;};
  for(let j=0;j<ROLES.length;j++){
   const role=ROLES[j],gain=Number(gains[role]??1),bus=[new Float32Array(length),new Float32Array(length)];
-  for(const e of plan.events){if(e.role!==role)continue;const gen=voice(e,preset,noise),a=Math.round(e.time*SR),n=Math.min(length-a,Math.round(e.duration*SR)),l=Math.sqrt((1-e.pan)/2)*e.velocity,r=Math.sqrt((1+e.pan)/2)*e.velocity;
+  for(const e of plan.events){if(e.role!==role)continue;const a=Math.round(e.time*SR);if(sampleBank&&await sampleBank.playEvent(bus,e,a,length,preset)){sampled++;continue;}if(sampleBank)fallback++;const gen=voice(e,preset,noise),n=Math.min(length-a,Math.round(e.duration*SR)),l=Math.sqrt((1-e.pan)/2)*e.velocity,r=Math.sqrt((1+e.pan)/2)*e.velocity;
    for(let i=0;i<n;i++){const v=gen(i/SR);bus[0][a+i]+=v*l;bus[1][a+i]+=v*r;}
   }
   if(solo==="all"||solo===role)for(let i=0;i<length;i++){
@@ -95,6 +95,6 @@ export async function renderArrangement(plan,length,{preset="classic",gains={},s
   }
   onProgress((j+1)/ROLES.length);await pause();
  }
- return out;
+ onSampleStats({sampled,fallback});return out;
 }
 export function peakGuard(ch,db=-1){let peak=0;for(const a of ch)for(const x of a)peak=Math.max(peak,Math.abs(x));const g=Math.min(1,10**(db/20)/Math.max(peak,1e-9));for(const a of ch)for(let i=0;i<a.length;i++)a[i]*=g;return ch;}
