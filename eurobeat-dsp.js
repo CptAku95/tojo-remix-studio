@@ -51,21 +51,23 @@ export function parseChords(s){
 }
 // WSOLA: local waveform alignment, preserving pitch better than changing playback speed.
 export async function stretch(ch,start,ratio,length,onProgress=()=>{}){
- const W=2048,H=1024,R=384,step=8,origin=Math.round(start*SR),out=[new Float32Array(length),new Float32Array(length)];
+ const W=2048,H=1024,R=384,step=8,origin=Math.round(start*SR),out=ch.map(()=>new Float32Array(length));
+ if(ch.length!==2&&ch.length!==4)throw Error("Nieprawidłowa liczba kanałów");
+ if(Math.abs(ratio-1)<1e-7){for(let c=0;c<ch.length;c++)out[c].set(ch[c].subarray(origin,origin+length));onProgress(1);return out;}
  const win=Float32Array.from({length:W},(_,i)=>.5-.5*Math.cos(TAU*(i+.5)/W)),weight=new Float32Array(length);
  const read=(c,i)=>i>=origin&&i<ch[c].length?ch[c][i]:0;
  for(let p=0,k=0;p<length;p+=H,k++){
   const expected=origin+Math.round(p*ratio);let at=expected,best=-Infinity;
   if(p>0&&expected<ch[0].length){
    for(let shift=-R;shift<=R;shift+=step){const pos=expected+shift;if(pos<origin)continue;let ab=0,aa=0,bb=0;
-    for(let j=64;j<H-64&&p+j<length;j+=16){if(weight[p+j]<.01)continue;const a=(out[0][p+j]+out[1][p+j])/(2*weight[p+j]),b=(read(0,pos+j)+read(1,pos+j))*.5;ab+=a*b;aa+=a*a;bb+=b*b;}
+    for(let j=64;j<H-64&&p+j<length;j+=16){if(weight[p+j]<.01)continue;let a=0,b=0;for(let c=0;c<ch.length;c++){a+=out[c][p+j]/weight[p+j];b+=read(c,pos+j);}a/=ch.length;b/=ch.length;ab+=a*b;aa+=a*a;bb+=b*b;}
     const score=ab/Math.sqrt(aa*bb+1e-14)-.012*Math.abs(shift)/R;if(score>best){best=score;at=pos;}
    }
   }
-  for(let j=0;j<W&&p+j<length;j++){const w=win[j];weight[p+j]+=w;out[0][p+j]+=read(0,at+j)*w;out[1][p+j]+=read(1,at+j)*w;}
+  for(let j=0;j<W&&p+j<length;j++){const w=win[j];weight[p+j]+=w;for(let c=0;c<ch.length;c++)out[c][p+j]+=read(c,at+j)*w;}
   if(k%80===0){onProgress(p/length);await pause();}
  }
- for(let i=0;i<length;i++){const w=Math.max(weight[i],1e-8);out[0][i]/=w;out[1][i]/=w;}onProgress(1);return out;
+ for(let i=0;i<length;i++){const w=Math.max(weight[i],1e-8);for(let c=0;c<ch.length;c++)out[c][i]/=w;}onProgress(1);return out;
 }
 const T=2048,tables={};
 function oscillator(kind,h){
@@ -107,6 +109,19 @@ export async function backing(bpm,chords,length,style,onProgress=()=>{},opts={})
  }
  for(let c=0;c<2;c++)for(let i=0;i<length;i++){const x=out[c][i];out[c][i]=x/(1+.38*Math.abs(x));}
  onProgress(1);return out;
+}
+// Retain the original instrumental as the base. Optional gentle low-band
+// attenuation makes room for the added bass; no source replacement.
+export function enrichInstrumental(original,extra,bpm,baseGain,extraGain,lowCut=0){
+ const n=original[0].length,out=[new Float32Array(n),new Float32Array(n)];
+ const alpha=1-Math.exp(-2*Math.PI*150/SR);
+ for(let c=0;c<2;c++){let low=0;for(let i=0;i<n;i++){
+  const x=original[c][i];low+=alpha*(x-low);
+  out[c][i]=(x-clamp(lowCut,0,.8)*low)*baseGain+extra[c][i]*extraGain;
+ }}
+ let peak=0;for(const ch of out)for(let i=0;i<n;i++)peak=Math.max(peak,Math.abs(ch[i]));
+ const scale=Math.min(1,.96/Math.max(peak,1e-8));for(const ch of out)for(let i=0;i<n;i++)ch[i]*=scale;
+ return out;
 }
 export function mix(v,inst,vGain,iGain){
  const n=v[0].length,output=[new Float32Array(n),new Float32Array(n)];let peak=0;
