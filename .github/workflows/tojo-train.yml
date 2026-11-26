@@ -1,0 +1,48 @@
+name: TOJO corpus training
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tojo-train.yml'
+      - 'approved-corpus.json'
+      - 'fetch-corpus.mjs'
+      - 'train-corpus.mjs'
+      - 'trainer-core.js'
+permissions:
+  contents: read
+concurrency:
+  group: tojo-corpus-training
+  cancel-in-progress: false
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test trainer and prepare corpus
+        run: |
+          mkdir -p training-output
+          node --test trainer-smoke.test.mjs
+          node fetch-corpus.mjs approved-corpus.json .training-midi training-output/download-report.json
+      - name: Train approved Eurobeat corpus
+        run: |
+          if [ "$(node -p 'require("./training-output/download-report.json").downloaded')" -eq 0 ]; then
+            echo "::warning::No approved MIDI downloaded. No Eurobeat model has been trained."
+            echo "BLOCKED: no eligible MIDI downloaded" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          node train-corpus.mjs approved-corpus.json .training-midi training-output/tojo-eurobeat-model.json
+      - name: Upload model and audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tojo-training-results
+          path: training-output/
+          if-no-files-found: warn
+          retention-days: 14
