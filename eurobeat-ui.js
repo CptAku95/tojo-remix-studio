@@ -1,6 +1,6 @@
 import {encodeWav} from "./wav.js";
 import {shareWav} from "./share-wav.js";
-import {transcribe,addOriginalNotes} from "./basic-pitch.js?v=029";
+import {transcribe,addOriginalNotes} from "./basic-pitch.js?v=031";
 import {SR,analyze,parseChords,stretch,arrangement,backing,reshapeRhythm,enrichInstrumental,mix} from "./eurobeat-dsp.js?v=029";
 import {planArrangement,renderArrangement,peakGuard} from "./eurobeat-engine.js?v=030";
 const $=id=>document.getElementById(id);
@@ -44,8 +44,8 @@ $("ebAnalyze").onclick=async()=>{
 $("ebPitch").onclick=async()=>{
  if(busy||!baseBlob)return;lock(true);resetPitch();
  try{
-  const start=num("ebPitchStart",0,600),seconds=num("ebPitchSeconds",5,30);
   const base=await decode(baseBlob);
+  const start=num("ebPitchStart",0,base[0].length/SR),seconds=$("ebPitchSeconds").value==="all"?Infinity:num("ebPitchSeconds",5,120);
   if(start>=base[0].length/SR)throw Error("Początek jest poza utworem.");
   const t=performance.now();
   transcription=await transcribe(base,start,seconds,say,progress,{model:$("ebPitchModel").files[0],wasm:$("ebPitchWasm").files[0]||($("wasmFile").files[0]?.name==="ort-wasm-simd-threaded.wasm"?$("wasmFile").files[0]:null)});
