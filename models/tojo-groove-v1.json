@@ -1,0 +1,266 @@
+{
+  "kind": "tojo-groove-v1",
+  "version": 1,
+  "songs": 12,
+  "roles": {
+    "bass": {
+      "support": 10,
+      "steps": [
+        {
+          "prob": 0.78,
+          "gate": 2.182,
+          "velocity": 0.787
+        },
+        {
+          "prob": 0.0734,
+          "gate": 1.15,
+          "velocity": 0.756
+        },
+        {
+          "prob": 0.8788,
+          "gate": 1.764,
+          "velocity": 0.785
+        },
+        {
+          "prob": 0.2413,
+          "gate": 1.504,
+          "velocity": 0.791
+        },
+        {
+          "prob": 0.7556,
+          "gate": 2.029,
+          "velocity": 0.789
+        },
+        {
+          "prob": 0.1366,
+          "gate": 1.119,
+          "velocity": 0.755
+        },
+        {
+          "prob": 0.8793,
+          "gate": 1.717,
+          "velocity": 0.784
+        },
+        {
+          "prob": 0.3183,
+          "gate": 1.269,
+          "velocity": 0.756
+        },
+        {
+          "prob": 0.659,
+          "gate": 1.915,
+          "velocity": 0.789
+        },
+        {
+          "prob": 0.2959,
+          "gate": 1.337,
+          "velocity": 0.804
+        },
+        {
+          "prob": 0.8504,
+          "gate": 1.795,
+          "velocity": 0.785
+        },
+        {
+          "prob": 0.2501,
+          "gate": 1.313,
+          "velocity": 0.774
+        },
+        {
+          "prob": 0.728,
+          "gate": 2.072,
+          "velocity": 0.789
+        },
+        {
+          "prob": 0.136,
+          "gate": 1.154,
+          "velocity": 0.756
+        },
+        {
+          "prob": 0.8657,
+          "gate": 1.868,
+          "velocity": 0.786
+        },
+        {
+          "prob": 0.1585,
+          "gate": 1.369,
+          "velocity": 0.763
+        }
+      ]
+    },
+    "lead": {
+      "support": 12,
+      "steps": [
+        {
+          "prob": 0.9405,
+          "gate": 3.01,
+          "velocity": 0.766
+        },
+        {
+          "prob": 0.3649,
+          "gate": 1.199,
+          "velocity": 0.734
+        },
+        {
+          "prob": 0.9063,
+          "gate": 1.698,
+          "velocity": 0.767
+        },
+        {
+          "prob": 0.4198,
+          "gate": 1.326,
+          "velocity": 0.737
+        },
+        {
+          "prob": 0.8679,
+          "gate": 1.782,
+          "velocity": 0.777
+        },
+        {
+          "prob": 0.3772,
+          "gate": 1.161,
+          "velocity": 0.698
+        },
+        {
+          "prob": 0.9342,
+          "gate": 2.173,
+          "velocity": 0.767
+        },
+        {
+          "prob": 0.4102,
+          "gate": 1.766,
+          "velocity": 0.757
+        },
+        {
+          "prob": 0.8513,
+          "gate": 2.566,
+          "velocity": 0.765
+        },
+        {
+          "prob": 0.405,
+          "gate": 1.014,
+          "velocity": 0.754
+        },
+        {
+          "prob": 0.9241,
+          "gate": 1.877,
+          "velocity": 0.771
+        },
+        {
+          "prob": 0.4261,
+          "gate": 1.29,
+          "velocity": 0.77
+        },
+        {
+          "prob": 0.8534,
+          "gate": 2.017,
+          "velocity": 0.767
+        },
+        {
+          "prob": 0.4273,
+          "gate": 1.452,
+          "velocity": 0.751
+        },
+        {
+          "prob": 0.8729,
+          "gate": 1.973,
+          "velocity": 0.776
+        },
+        {
+          "prob": 0.3379,
+          "gate": 1.104,
+          "velocity": 0.742
+        }
+      ]
+    },
+    "harmony": {
+      "support": 8,
+      "steps": [
+        {
+          "prob": 0.854,
+          "gate": 5.177,
+          "velocity": 0.767
+        },
+        {
+          "prob": 0.003,
+          "gate": 4.333,
+          "velocity": 0.857
+        },
+        {
+          "prob": 0.266,
+          "gate": 2.49,
+          "velocity": 0.777
+        },
+        {
+          "prob": 0.0257,
+          "gate": 2.116,
+          "velocity": 0.817
+        },
+        {
+          "prob": 0.4227,
+          "gate": 2.552,
+          "velocity": 0.762
+        },
+        {
+          "prob": 0.0122,
+          "gate": 1.294,
+          "velocity": 0.878
+        },
+        {
+          "prob": 0.4053,
+          "gate": 4.313,
+          "velocity": 0.773
+        },
+        {
+          "prob": 0.1545,
+          "gate": 1.843,
+          "velocity": 0.817
+        },
+        {
+          "prob": 0.3404,
+          "gate": 5.139,
+          "velocity": 0.768
+        },
+        {
+          "prob": 0.0618,
+          "gate": 1.98,
+          "velocity": 0.837
+        },
+        {
+          "prob": 0.4308,
+          "gate": 2.723,
+          "velocity": 0.772
+        },
+        {
+          "prob": 0.0333,
+          "gate": 1.5,
+          "velocity": 0.756
+        },
+        {
+          "prob": 0.4202,
+          "gate": 3.281,
+          "velocity": 0.752
+        },
+        {
+          "prob": 0.0377,
+          "gate": 1.364,
+          "velocity": 0.756
+        },
+        {
+          "prob": 0.4631,
+          "gate": 3.141,
+          "velocity": 0.77
+        },
+        {
+          "prob": 0.0403,
+          "gate": 1.2,
+          "velocity": 0.805
+        }
+      ]
+    }
+  },
+  "source": {
+    "repo": "ss16118/EuroGen",
+    "ref": "3b4fbba19a3f07289cfdceecde85f2e4f1275260"
+  }
+}
