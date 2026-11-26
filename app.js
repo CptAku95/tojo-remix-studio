@@ -102,4 +102,4 @@ $("clearLog").onclick=()=>{
  try{localStorage.removeItem(LOGKEY);}catch{}
  $("copy").textContent="Kopiuj log";
 };
-log("Tojo v0.2.4 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
+log("Tojo v0.2.5 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
