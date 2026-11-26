@@ -105,10 +105,11 @@ export function addOriginalNotes(extra,notes,start,ratio,gain){
  for(const note of notes){
   const a=(note.start-start)/ratio,b=(note.start+note.duration-start)/ratio;
   if(b<=0||a>=n/sr||note.pitch<21||note.pitch>108)continue;
-  const first=Math.max(0,Math.round(a*sr)),last=Math.min(n,Math.round(b*sr)),h=440*2**((note.pitch-69)/12),amp=.085*gain*Math.min(1,Math.max(.12,note.amp));
+  const first=Math.max(0,Math.round(a*sr)),last=Math.min(n,Math.round(b*sr)),h=440*2**((note.pitch-69)/12),amp=.16*gain*Math.min(1,Math.max(.12,note.amp));
   for(let i=first;i<last;i++){const t=i/sr-a,release=b-i/sr,env=Math.min(1,t/.012,release/.035),p=2*Math.PI*h*t;
-   const x=(Math.sin(p)+.44*Math.sin(p*2)+.23*Math.sin(p*3)+.10*Math.sin(p*4))*.55*amp*Math.max(0,env);
-   extra[0][i]+=x;extra[1][i]+=x;
+   const brass=q=>(Math.sin(q)+.48*Math.sin(q*2)+.32*Math.sin(q*3)+.24*Math.sin(q*4)+.17*Math.sin(q*5)+.1*Math.sin(q*6))*.48;
+   const envelope=Math.max(0,env)*(.72+.28*Math.exp(-t*9)),a=brass(p),l=(a*.65+brass(p*.994)*.35)*envelope*amp,r=(a*.65+brass(p*1.006)*.35)*envelope*amp;
+   extra[0][i]+=l;extra[1][i]+=r;
   }
  }
 }
