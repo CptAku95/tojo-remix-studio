@@ -1,9 +1,9 @@
 import {encodeWav} from "./wav.js";
 import {shareWav} from "./share-wav.js";
-import {transcribe,addOriginalNotes} from "./basic-pitch.js?v=028";
-import {SR,analyze,parseChords,stretch,arrangement,backing,enrichInstrumental,mix} from "./eurobeat-dsp.js?v=028";
+import {transcribe,addOriginalNotes} from "./basic-pitch.js?v=029";
+import {SR,analyze,parseChords,stretch,arrangement,backing,reshapeRhythm,enrichInstrumental,mix} from "./eurobeat-dsp.js?v=029";
 const $=id=>document.getElementById(id);
-const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebPitch","ebPitchModel","ebPitchWasm","ebPitchStart","ebPitchSeconds","ebPitchGain","ebBassSource","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
+const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebPitch","ebPitchModel","ebPitchWasm","ebPitchStart","ebPitchSeconds","ebPitchGain","ebBassSource","ebRebuild","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
 let transcription=null,vocal=null,baseBlob=null,reference=null,refOffset=0,vocalName="track",busy=false,urls=[],blobs=[],vocalURL=null;
 function say(s){$("ebStatus").textContent=s;$("ebSourceStatus").textContent=s;}
 function enable(){for(const id of ids)$(id).disabled=busy;$("ebAnalyze").disabled=busy||!vocal;$("ebBase").disabled=busy||!vocal;$("ebRender").disabled=busy||!vocal||!baseBlob;$("ebAnalyze").disabled=busy||!vocal||(!baseBlob&&!reference);$("ebPitch").disabled=busy||!baseBlob;}
@@ -65,20 +65,23 @@ $("ebRender").onclick=async()=>{
   if(Math.abs(base[0].length-vocal[0].length)>SR*.5)throw Error("Wokal i instrumental mają różną długość. Wczytaj ścieżki z tej samej separacji.");
   const n=Math.min(Math.floor(bars*4*60/target*SR),Math.floor((Math.min(vocal[0].length,base[0].length)-start*SR)/ratio));if(n<SR*.5)throw Error("Za mało audio od wybranej pozycji.");
   say("Dopasowuję tempo obu ścieżek razem…");
-  const stems=await stretch([...vocal,...base],start,ratio,n,p=>progress(p*.45)),v=stems.slice(0,2),original=stems.slice(2);
+  const stems=await stretch([...vocal,...base],start,ratio,n,p=>progress(p*.30)),v=stems.slice(0,2),original=stems.slice(2);
   say("Dodaję eurobeatowe instrumenty do oryginału…");const sections=arrangement(v,target);
   $("ebArrangement").textContent=sections.map((s,i)=>"Takt "+s.bar+" · "+$("ebChords").value.trim().split(/[\s,|]+/).filter(Boolean)[i%chords.length]+" · "+s.type).join("\n");
-  const extraGain=num("ebIGain",0,2);
-  const extra=extraGain>0?await backing(target,chords,n,$("ebStyle").value,p=>progress(.45+p*.5),{sections,preset:$("ebPreset").value,lead:num("ebLead",0,2),sourceBass:transcription?.testOk&&transcription.bassNotes.length&&$("ebBassSource").value==="original"?{notes:transcription.bassNotes,from:transcription.from,to:transcription.to,start,ratio}:null}):[new Float32Array(n),new Float32Array(n)];
-  const i=enrichInstrumental(original,extra,target,num("ebBaseGain",.4,2),extraGain,extraGain>0?num("ebLowCut",0,.8):0);
+  const extraGain=num("ebIGain",0,2),amount=extraGain>0?num("ebRebuild",0,.95):0;
+  say("Osłabiam oryginalną perkusję, zachowując część melodyczną…");
+  const foundation=await reshapeRhythm(original,amount,p=>progress(.30+.35*p));
+  say("Buduję sekcję rytmiczną Eurobeat…");
+  const extra=extraGain>0?await backing(target,chords,n,$("ebStyle").value,p=>progress(.65+p*.30),{sections,preset:$("ebPreset").value,lead:num("ebLead",0,2),sourceBass:transcription?.testOk&&transcription.bassNotes.length&&$("ebBassSource").value==="original"?{notes:transcription.bassNotes,from:transcription.from,to:transcription.to,start,ratio}:null}):[new Float32Array(n),new Float32Array(n)];
+  const i=enrichInstrumental(foundation,extra,target,num("ebBaseGain",.4,2),extraGain,extraGain>0?num("ebLowCut",0,.8):0);
   const pitchGain=num("ebPitchGain",0,2);
   if(transcription?.testOk&&pitchGain>0)addOriginalNotes(i,transcription.melodyNotes,start,ratio,pitchGain);
-  const m=mix(v,i,num("ebVGain",0,2),1);say("Przygotowuję pliki WAV…");
+  const safeI=mix(i,[new Float32Array(n),new Float32Array(n)],1,0);const m=mix(v,safeI,num("ebVGain",0,2),1);say("Przygotowuję pliki WAV…");
   const name=vocalName+"-"+target+"bpm";
-  for(const [data,player,link,suffix] of [[m,"ebMix","ebMixSave","remix"],[i,"ebBacking","ebBackingSave","instrumental"],[v,"ebStretched","ebStretchedSave","vocals"]]){
+  for(const [data,player,link,suffix] of [[m,"ebMix","ebMixSave","remix"],[safeI,"ebBacking","ebBackingSave","instrumental"],[v,"ebStretched","ebStretchedSave","vocals"]]){
    const blob=asWav(data);blobs.push({blob,name:name+"-"+suffix+".wav"});const url=URL.createObjectURL(blob);urls.push(url);$(player).src=url;$(link).href=url;$(link).download=name+"-"+suffix+".wav";
   }
-  progress(1);$("ebOutput").hidden=false;say("Gotowe: "+(n/SR).toFixed(1)+" s · "+target+" BPM · oryginalny instrumental zachowany.");
+  progress(1);$("ebOutput").hidden=false;say("Gotowe: "+(n/SR).toFixed(1)+" s · "+target+" BPM · oryginalna harmonia jako baza.");
  }catch(e){clear();say("Błąd: "+e.message);}finally{lock(false);}
 };
 for(const [id,i] of [["ebMixShare",0],["ebBackingShare",1],["ebStretchedShare",2]])$(id).onclick=()=>{const b=blobs[i];if(b)shareWav(b.blob,b.name,s=>$("ebSaveStatus").textContent=s);};
