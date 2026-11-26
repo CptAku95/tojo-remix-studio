@@ -7,9 +7,13 @@ const bytes64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 function to64(a){let s="";for(let i=0;i<a.length;i+=16384)s+=String.fromCharCode(...a.subarray(i,i+16384));return btoa(s);}
 const valid=(a,f)=>a.length>44&&(f==="wav"?String.fromCharCode(...a.subarray(0,4))==="RIFF"&&String.fromCharCode(...a.subarray(8,12))==="WAVE":f==="flac"&&String.fromCharCode(...a.subarray(0,4))==="fLaC");
 export function selectSample(samples,kind,pitch,preset="classic",overrides={}){
- const list=samples.filter(x=>x.kind===kind);if(!list.length)return null;
- const pick=list.find(x=>x.id===overrides[kind]);if(pick&&!pitched.has(kind)&&kind!=="tom")return pick;
- if(pitched.has(kind)||kind==="tom")return list.reduce((a,b)=>Math.abs((b.root??pitch)-pitch)<Math.abs((a.root??pitch)-pitch)?b:a);
+ let list=samples.filter(x=>x.kind===kind);if(!list.length)return null;
+ const tonal=pitched.has(kind)||kind==="tom";
+ const pick=list.find(x=>x.id===overrides[kind]);if(pick&&!tonal)return pick;
+ const melodic={fm:"tx81z-lately",brass:"dx7-brass",pluck:"surge-bass-lead"};
+ const preferred=pick?(pick.family||"legacy"):melodic[kind]||(tonal&&kind!=="tom"?"legacy":preset==="dark"?"linndrum":"tr909");
+ const family=list.filter(x=>(x.family||"legacy")===preferred);if(family.length)list=family;
+ if(tonal)return list.reduce((a,b)=>Math.abs((b.root??pitch)-pitch)<Math.abs((a.root??pitch)-pitch)?b:a);
  return preset==="race"&&list.length>1?list[1]:list[0];
 }
 export function addSample(bus,e,sample,offset,length){
@@ -56,7 +60,7 @@ export class SoundBank{
 }
 let builtinPromise=null;
 export function builtinBank(){
- if(!builtinPromise)builtinPromise=(async()=>{const all=[];for(const load of [()=>import("./soundbank/drums.js"),()=>import("./soundbank/bass.js"),()=>import("./soundbank/brass.js"),()=>import("./soundbank/keys.js"),()=>import("./soundbank/pad.js"),()=>import("./soundbank/bell.js")]){const group=await load();all.push(...group.default);}const bank=new SoundBank(all);log("Biblioteka: "+all.length+" próbek WAV/FLAC");return bank;})().catch(e=>{builtinPromise=null;throw e;});return builtinPromise;
+ if(!builtinPromise)builtinPromise=(async()=>{const all=[];for(const load of [()=>import("./soundbank/drums.js"),()=>import("./soundbank/bass.js"),()=>import("./soundbank/brass.js"),()=>import("./soundbank/keys.js"),()=>import("./soundbank/pad.js"),()=>import("./soundbank/bell.js"),()=>import("./soundbank/exp-dx7-brass-0.js"),()=>import("./soundbank/exp-dx7-brass-more-0.js"),()=>import("./soundbank/exp-dx7-brass-more-1.js"),()=>import("./soundbank/exp-dx7-brass-more-2.js"),()=>import("./soundbank/exp-retro-0.js"),()=>import("./soundbank/exp-retro-1.js"),()=>import("./soundbank/exp-surge-bass-lead-0.js"),()=>import("./soundbank/exp-surge-bass-lead-1.js"),()=>import("./soundbank/exp-surge-bass-lead-more-0.js"),()=>import("./soundbank/exp-surge-bass-lead-more-1.js"),()=>import("./soundbank/exp-surge-bass-lead-more-2.js"),()=>import("./soundbank/exp-tr909-0.js"),()=>import("./soundbank/exp-tr909-1.js"),()=>import("./soundbank/exp-tx81z-lately-0.js"),()=>import("./soundbank/exp-tx81z-lately-1.js"),()=>import("./soundbank/exp-tx81z-lately-2.js"),()=>import("./soundbank/exp-tx81z-more-0.js"),()=>import("./soundbank/exp-tx81z-more-1.js"),()=>import("./soundbank/exp-tx81z-more-2.js"),()=>import("./soundbank/exp-tx81z-more-3.js"),()=>import("./soundbank/exp-tx81z-more-4.js"),()=>import("./soundbank/exp-tx81z-more-5.js"),()=>import("./soundbank/exp-tx81z-more-6.js"),()=>import("./soundbank/exp-tx81z-more-7.js")]){const group=await load();all.push(...group.default);}const bank=new SoundBank(all,"TOJO SoundBank 2.0");log("Biblioteka: "+all.length+" próbek WAV/FLAC");return bank;})().catch(e=>{builtinPromise=null;throw e;});return builtinPromise;
 }
 const table=Uint32Array.from({length:256},(_,i)=>{let x=i;for(let k=0;k<8;k++)x=x&1?0xedb88320^(x>>>1):x>>>1;return x>>>0;});
 function crc32(a){let c=0xffffffff;for(const v of a)c=table[(c^v)&255]^(c>>>8);return (c^0xffffffff)>>>0;}
