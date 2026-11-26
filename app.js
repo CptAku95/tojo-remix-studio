@@ -93,7 +93,7 @@ for(const [button,i,suffix] of [["shareV",0,"vocals"],["shareI",1,"instrumental"
 }
 $("sendVocal").onclick=async()=>{
  if(busy||!outputBlobs[0])return;
- setBusy(true);try{await releaseEngine();window.dispatchEvent(new CustomEvent("tojo-vocal",{detail:{blob:outputBlobs[0],name:baseName+"-vocals.wav",reference:input,offset:lastOffset}}));}finally{setBusy(false);}
+ setBusy(true);try{await releaseEngine();window.dispatchEvent(new CustomEvent("tojo-vocal",{detail:{blob:outputBlobs[0],instrumental:outputBlobs[1],name:baseName+"-vocals.wav",reference:input,offset:lastOffset}}));}finally{setBusy(false);}
 };
 $("copy").onclick=async()=>{try{await navigator.clipboard.writeText($("log").textContent);$("copy").textContent="Skopiowano";}catch{const r=document.createRange();r.selectNodeContents($("log"));const s=getSelection();s.removeAllRanges();s.addRange(r);$("copy").textContent="Zaznaczono log";}};
 $("clearLog").onclick=()=>{
@@ -102,4 +102,4 @@ $("clearLog").onclick=()=>{
  try{localStorage.removeItem(LOGKEY);}catch{}
  $("copy").textContent="Kopiuj log";
 };
-log("Tojo v0.2.3 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
+log("Tojo v0.2.4 · "+navigator.userAgent);log("WebGPU API: "+Boolean(navigator.gpu)+" · secureContext: "+isSecureContext+" · crossOriginIsolated: "+crossOriginIsolated);
