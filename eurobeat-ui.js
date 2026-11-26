@@ -6,7 +6,7 @@ import {planArrangement,renderArrangement,peakGuard} from "./eurobeat-engine.js?
 import {pairedTempo,pairedAccents,pairedGains} from "./paired-style.js?v=1";
 import {applyAudioStyle} from "./audio-style.js?v=1";
 import {applyLearnedGroove} from "./learned-groove.js?v=1";
-import {builtinBank,SoundBank} from "./soundbank.js?v=047";
+import {builtinBank,SoundBank} from "./soundbank.js?v=048";
 const $=id=>document.getElementById(id);
 const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebPitch","ebPitchModel","ebPitchWasm","ebPitchStart","ebPitchSeconds","ebPitchGain","ebBassSource","ebRebuild","ebEngine","ebBankLoad","ebBankImport","ebBankExport","ebBankShare","ebSampleSelect","ebSamplePreview","ebSampleUse","ebBankReset","ebDrumsGain","ebBassGain","ebUpbeatGain","ebPadGain","ebBrassGain","ebFxGain","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
 let transcription=null,vocal=null,baseBlob=null,reference=null,refOffset=0,vocalName="track",busy=false,urls=[],blobs=[],vocalURL=null;
