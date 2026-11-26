@@ -3,6 +3,7 @@ import {shareWav} from "./share-wav.js";
 import {transcribe,addOriginalNotes} from "./basic-pitch.js?v=031";
 import {SR,analyze,parseChords,stretch,arrangement,backing,reshapeRhythm,enrichInstrumental,mix} from "./eurobeat-dsp.js?v=029";
 import {planArrangement,renderArrangement,peakGuard} from "./eurobeat-engine.js?v=040";
+import {applyAudioStyle} from "./audio-style.js?v=1";
 import {applyLearnedGroove} from "./learned-groove.js?v=1";
 import {builtinBank,SoundBank} from "./soundbank.js?v=040";
 const $=id=>document.getElementById(id);
@@ -96,12 +97,13 @@ $("ebRender").onclick=async()=>{
   let extra=[new Float32Array(n),new Float32Array(n)];
   if(extraGain>0&&modern){
    let plan=planArrangement({bpm:target,chords,length:n,sections,sourceBass,melody:transcription?.testOk?transcription.melodyNotes:[],start,ratio,style,preset,lead,pitchGain});
-   if(engine==="ai"){say("Wczytuję wyuczony groove Eurobeat…");const response=await fetch("./models/tojo-groove-v1.json");if(!response.ok)throw Error("Model groove HTTP "+response.status);plan=applyLearnedGroove(plan,await response.json());window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:"TOJO AI Groove: model wyuczony na 12 MIDI; "+plan.events.length+" zdarzeń"}));}
+   if(engine==="ai"||engine==="stylelab"){say("Wczytuję wyuczony groove Eurobeat…");const response=await fetch("./models/tojo-groove-v1.json");if(!response.ok)throw Error("Model groove HTTP "+response.status);plan=applyLearnedGroove(plan,await response.json());window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:"TOJO AI Groove: model wyuczony na 12 MIDI; "+plan.events.length+" zdarzeń"}));}
+   if(engine==="stylelab"){say("Wczytuję profil audio TurboA…");const response=await fetch("./models/tojo-turboa-style-v1.json");if(!response.ok)throw Error("StyleLab HTTP "+response.status);const profile=await response.json();plan=applyAudioStyle(plan,profile);window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:"StyleLab: "+profile.songs+" MP3 w profilu · "+profile.tempoTracks+" pomiarów tempa · mediana "+profile.metrics.tempoEstimate[1]+" BPM · akcenty zastosowane"}));}
    const gains=Object.fromEntries([["drums","ebDrumsGain"],["bass","ebBassGain"],["upbeat","ebUpbeatGain"],["pad","ebPadGain"],["brass","ebBrassGain"],["fx","ebFxGain"]].map(([role,id])=>[role,num(id,0,2)]));
    $("ebArrangement").textContent=plan.labels.map(x=>"Takt "+x.bar+" · "+x.type).join("\n")+"\n\nZdarzenia: "+Object.entries(plan.counts).map(([k,v])=>k+": "+v).join(" · ")+"\nBas z oryginału: "+plan.sourceCount+" kroków";
-   window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:(engine==="ai"?"AI Groove arrangement: ":"Engine 0.3: ")+JSON.stringify(plan.counts)+"; bas z oryginału: "+plan.sourceCount}));
+   window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:(engine==="stylelab"?"StyleLab arrangement: ":engine==="ai"?"AI Groove arrangement: ":"Engine 0.3: ")+JSON.stringify(plan.counts)+"; bas z oryginału: "+plan.sourceCount}));
    let sampleBank=null;
-   if(engine==="sample"||engine==="ai"){say("Wczytuję bibliotekę nagranych brzmień…");sampleBank=await getBank();populateBank(sampleBank);say("Renderuję próbki instrumentów…");}
+   if(engine==="sample"||engine==="ai"||engine==="stylelab"){say("Wczytuję bibliotekę nagranych brzmień…");sampleBank=await getBank();populateBank(sampleBank);say("Renderuję próbki instrumentów…");}
    extra=await renderArrangement(plan,n,{preset,gains,sampleBank,onSampleStats:stats=>{if(!sampleBank)return;const line="Sample Engine: "+stats.sampled+" zdarzeń z próbek, "+stats.fallback+" z syntezy zastępczej";$("ebArrangement").textContent+="\n"+line;window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:line}));}},p=>progress(.65+p*.30));
   }else if(extraGain>0)extra=await backing(target,chords,n,style,p=>progress(.65+p*.30),{sections,preset,lead,sourceBass});
   const i=enrichInstrumental(foundation,extra,target,num("ebBaseGain",.4,2),extraGain,extraGain>0?num("ebLowCut",0,.8):0);
