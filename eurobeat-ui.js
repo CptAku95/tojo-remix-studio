@@ -92,14 +92,14 @@ $("ebRender").onclick=async()=>{
   say("Osłabiam oryginalną perkusję, zachowując część melodyczną…");
   const foundation=await reshapeRhythm(original,amount,p=>progress(.30+.35*p));
   say("Buduję sekcję rytmiczną Eurobeat…");
-  const engine=$("ebEngine").value,modern=engine!=="legacy",preset=$("ebPreset").value,style=$("ebStyle").value,lead=num("ebLead",0,2),pitchGain=num("ebPitchGain",0,2),sourceBass=transcription?.testOk&&transcription.bassNotes.length&&$("ebBassSource").value==="original"?{notes:transcription.bassNotes,from:transcription.from,to:transcription.to,start,ratio}:null;
+  const engine=$("ebEngine").value;window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:"Eurobeat engine selected: "+engine}));const modern=engine!=="legacy",preset=$("ebPreset").value,style=$("ebStyle").value,lead=num("ebLead",0,2),pitchGain=num("ebPitchGain",0,2),sourceBass=transcription?.testOk&&transcription.bassNotes.length&&$("ebBassSource").value==="original"?{notes:transcription.bassNotes,from:transcription.from,to:transcription.to,start,ratio}:null;
   let extra=[new Float32Array(n),new Float32Array(n)];
   if(extraGain>0&&modern){
    let plan=planArrangement({bpm:target,chords,length:n,sections,sourceBass,melody:transcription?.testOk?transcription.melodyNotes:[],start,ratio,style,preset,lead,pitchGain});
    if(engine==="ai"){say("Wczytuję wyuczony groove Eurobeat…");const response=await fetch("./models/tojo-groove-v1.json");if(!response.ok)throw Error("Model groove HTTP "+response.status);plan=applyLearnedGroove(plan,await response.json());window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:"TOJO AI Groove: model wyuczony na 12 MIDI; "+plan.events.length+" zdarzeń"}));}
    const gains=Object.fromEntries([["drums","ebDrumsGain"],["bass","ebBassGain"],["upbeat","ebUpbeatGain"],["pad","ebPadGain"],["brass","ebBrassGain"],["fx","ebFxGain"]].map(([role,id])=>[role,num(id,0,2)]));
    $("ebArrangement").textContent=plan.labels.map(x=>"Takt "+x.bar+" · "+x.type).join("\n")+"\n\nZdarzenia: "+Object.entries(plan.counts).map(([k,v])=>k+": "+v).join(" · ")+"\nBas z oryginału: "+plan.sourceCount+" kroków";
-   window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:"Engine 0.3: "+JSON.stringify(plan.counts)+"; bas z oryginału: "+plan.sourceCount}));
+   window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:(engine==="ai"?"AI Groove arrangement: ":"Engine 0.3: ")+JSON.stringify(plan.counts)+"; bas z oryginału: "+plan.sourceCount}));
    let sampleBank=null;
    if(engine==="sample"||engine==="ai"){say("Wczytuję bibliotekę nagranych brzmień…");sampleBank=await getBank();populateBank(sampleBank);say("Renderuję próbki instrumentów…");}
    extra=await renderArrangement(plan,n,{preset,gains,sampleBank,onSampleStats:stats=>{if(!sampleBank)return;const line="Sample Engine: "+stats.sampled+" zdarzeń z próbek, "+stats.fallback+" z syntezy zastępczej";$("ebArrangement").textContent+="\n"+line;window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:line}));}},p=>progress(.65+p*.30));
