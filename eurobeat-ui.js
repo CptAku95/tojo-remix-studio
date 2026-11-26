@@ -1,6 +1,6 @@
 import {encodeWav} from "./wav.js";
 import {shareWav} from "./share-wav.js";
-import {transcribe,addOriginalNotes} from "./basic-pitch.js?v=026";
+import {transcribe,addOriginalNotes} from "./basic-pitch.js?v=027";
 import {SR,analyze,parseChords,stretch,arrangement,backing,enrichInstrumental,mix} from "./eurobeat-dsp.js?v=024";
 const $=id=>document.getElementById(id);
 const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebPitch","ebPitchModel","ebPitchWasm","ebPitchStart","ebPitchSeconds","ebPitchGain","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
@@ -48,9 +48,9 @@ $("ebPitch").onclick=async()=>{
   if(start>=base[0].length/SR)throw Error("Początek jest poza utworem.");
   const t=performance.now();
   transcription=await transcribe(base,start,seconds,say,progress,{model:$("ebPitchModel").files[0],wasm:$("ebPitchWasm").files[0]||($("wasmFile").files[0]?.name==="ort-wasm-simd-threaded.wasm"?$("wasmFile").files[0]:null)});
-  const count=transcription.notes.length,used=transcription.notes.filter(n=>n.pitch>=48&&n.pitch<=90).length;
-  $("ebPitchInfo").textContent="Wykryto "+count+" nut ("+used+" w zakresie syntezatora), "+transcription.from.toFixed(1)+"–"+transcription.to.toFixed(1)+" s. Czas: "+((performance.now()-t)/1000).toFixed(1)+" s.";
-  if(used)$("ebPitchGain").value="1";
+  const count=transcription.notes.length,used=transcription.notes.filter(n=>n.pitch>=21&&n.pitch<=108).length;
+  $("ebPitchInfo").textContent="Wykryto "+count+" nut · MIDI "+(transcription.range?.join("–")||"brak")+" · test A4: "+(transcription.testOk?"OK":"UWAGA")+" · "+transcription.from.toFixed(1)+"–"+transcription.to.toFixed(1)+" s. Czas: "+((performance.now()-t)/1000).toFixed(1)+" s.";
+  if(used&&transcription.testOk)$("ebPitchGain").value="1";
   say(count?"Basic Pitch: analiza zakończona.":"Basic Pitch nie rozpoznał nut w tym fragmencie.");
  }catch(e){resetPitch();say("Basic Pitch: "+e.message);$("ebPitchInfo").textContent="Błąd: "+e.message;}finally{lock(false);}
 };
