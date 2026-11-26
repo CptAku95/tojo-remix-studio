@@ -1,0 +1,184 @@
+{
+  "kind": "experimental corpus model",
+  "sourceRepository": "https://github.com/ss16118/EuroGen",
+  "sourceCommit": "3b4fbba19a3f07289cfdceecde85f2e4f1275260",
+  "rights": "Public third-party MIDI transcriptions; underlying rights and TDM reservations not independently confirmed. Research prototype only; no source MIDI redistributed. Do not treat as clearance for commercial use.",
+  "filter": "Exact token and transition retained only when present in at least two different input files; this reduces but does not guarantee against memorization.",
+  "accepted": 11,
+  "rawNotes": 101368,
+  "modelBars": 1294,
+  "modelEvents": 98436,
+  "files": [
+    {
+      "file": "Dave Rodgers - Déjà Vu.mid",
+      "notes": 16899,
+      "bpm": 154.99990958338608,
+      "roles": {
+        "drums": 6078,
+        "bass": 2003,
+        "lead": 6661,
+        "harmony": 2157
+      },
+      "blob": "0f597e379ee925b3e51147656a6bf8c050bd8806",
+      "url": "https://github.com/ss16118/EuroGen/blob/3b4fbba19a3f07289cfdceecde85f2e4f1275260/midi/Dave%20Rodgers%20-%20D%C3%A9j%C3%A0%20Vu.mid",
+      "barCount": 159
+    },
+    {
+      "file": "Initial D - Blazing Beat.mid",
+      "notes": 12254,
+      "bpm": 140.00014000014,
+      "roles": {
+        "drums": 802,
+        "bass": 4369,
+        "lead": 5923,
+        "harmony": 1160
+      },
+      "blob": "2bb6dd25428998fc12efb173359a9f120950da54",
+      "url": "https://github.com/ss16118/EuroGen/blob/3b4fbba19a3f07289cfdceecde85f2e4f1275260/midi/Initial%20D%20-%20Blazing%20Beat.mid",
+      "barCount": 181
+    },
+    {
+      "file": "Initial D - Burning up For You.mid",
+      "notes": 20255,
+      "bpm": 152.00032426735845,
+      "roles": {
+        "drums": 7046,
+        "bass": 1589,
+        "lead": 10352,
+        "harmony": 1268
+      },
+      "blob": "3bc94039ad63264f6f4f749332e912991695fc5d",
+      "url": "https://github.com/ss16118/EuroGen/blob/3b4fbba19a3f07289cfdceecde85f2e4f1275260/midi/Initial%20D%20-%20Burning%20up%20For%20You.mid",
+      "barCount": 186
+    },
+    {
+      "file": "Initial D - Gamble Rumble.mid",
+      "notes": 14499,
+      "bpm": 150,
+      "roles": {
+        "drums": 3741,
+        "bass": 1895,
+        "lead": 8423,
+        "harmony": 440
+      },
+      "blob": "60c1a31d5541d2b5ae6a102048667479f416ef17",
+      "url": "https://github.com/ss16118/EuroGen/blob/3b4fbba19a3f07289cfdceecde85f2e4f1275260/midi/Initial%20D%20-%20Gamble%20Rumble.mid",
+      "barCount": 169
+    },
+    {
+      "file": "Initial D - Maybe Tonight Remix.mid",
+      "notes": 15941,
+      "bpm": 150,
+      "roles": {
+        "drums": 4053,
+        "bass": 4020,
+        "lead": 6976,
+        "harmony": 892
+      },
+      "blob": "0c483f372a3a4f4b5189c6da1c81ee41ab7dda52",
+      "url": "https://github.com/ss16118/EuroGen/blob/3b4fbba19a3f07289cfdceecde85f2e4f1275260/midi/Initial%20D%20-%20Maybe%20Tonight%20Remix.mid",
+      "barCount": 173
+    },
+    {
+      "file": "Initial D - Night of Fire.mid",
+      "error": "Error: Trainer v1 obsługuje metrum 4/4"
+    },
+    {
+      "file": "Initial D - Rage You Dreams.mid",
+      "notes": 15579,
+      "bpm": 100,
+      "roles": {
+        "drums": 2595,
+        "bass": 956,
+        "lead": 10268,
+        "harmony": 1760
+      },
+      "blob": "2e890a9d1173bb0dddb7fa95fa553c56ee67db91",
+      "url": "https://github.com/ss16118/EuroGen/blob/3b4fbba19a3f07289cfdceecde85f2e4f1275260/midi/Initial%20D%20-%20Rage%20You%20Dreams.mid",
+      "barCount": 135
+    },
+    {
+      "file": "Initial D - Spaceboy.mid",
+      "notes": 3849,
+      "bpm": 150,
+      "roles": {
+        "drums": 1322,
+        "bass": 636,
+        "lead": 1891,
+        "harmony": 0
+      },
+      "blob": "b0cbf6a1feb7fcbea9ce1cbfa8c699a0dd7471f0",
+      "url": "https://github.com/ss16118/EuroGen/blob/3b4fbba19a3f07289cfdceecde85f2e4f1275260/midi/Initial%20D%20-%20Spaceboy.mid",
+      "barCount": 171
+    },
+    {
+      "file": "Marko Polo - Speedy Speed Boy (Initial-D).mid",
+      "notes": 1222,
+      "bpm": 151.99993920002433,
+      "roles": {
+        "drums": 0,
+        "bass": 0,
+        "lead": 1222,
+        "harmony": 0
+      },
+      "blob": "aa4c63eab20c9b88fa3e8d79397c97e3be7489dc",
+      "url": "https://github.com/ss16118/EuroGen/blob/3b4fbba19a3f07289cfdceecde85f2e4f1275260/midi/Marko%20Polo%20-%20Speedy%20Speed%20Boy%20(Initial-D).mid",
+      "barCount": 75
+    },
+    {
+      "file": "Max Coveri - Running in the 90s.mid",
+      "notes": 442,
+      "bpm": 158.49995641251198,
+      "roles": {
+        "drums": 196,
+        "bass": 28,
+        "lead": 218,
+        "harmony": 0
+      },
+      "blob": "6fc7d2a86d1e291803902c0d82438c4a7648e466",
+      "url": "https://github.com/ss16118/EuroGen/blob/3b4fbba19a3f07289cfdceecde85f2e4f1275260/midi/Max%20Coveri%20-%20Running%20in%20the%2090s.mid",
+      "barCount": 25
+    },
+    {
+      "file": "Virginelle - Baby Come Back.mid",
+      "notes": 316,
+      "bpm": 150,
+      "roles": {
+        "drums": 0,
+        "bass": 28,
+        "lead": 230,
+        "harmony": 58
+      },
+      "blob": "a7afef8b04a796fb2111cc56fc1a9ae011c237d2",
+      "url": "https://github.com/ss16118/EuroGen/blob/3b4fbba19a3f07289cfdceecde85f2e4f1275260/midi/Virginelle%20-%20Baby%20Come%20Back.mid",
+      "barCount": 8
+    },
+    {
+      "file": "rose love love.mid",
+      "notes": 112,
+      "bpm": 135.9000319365075,
+      "roles": {
+        "drums": 0,
+        "bass": 0,
+        "lead": 112,
+        "harmony": 0
+      },
+      "blob": "36cf63cee29f82ad7aa7b48c664a59e2d750c958",
+      "url": "https://github.com/ss16118/EuroGen/blob/3b4fbba19a3f07289cfdceecde85f2e4f1275260/midi/rose%20love%20love.mid",
+      "barCount": 12
+    }
+  ],
+  "retainedTokens": {
+    "drums": 38,
+    "bass": 77,
+    "lead": 105,
+    "harmony": 43
+  },
+  "demoEvents": 101,
+  "demoRoles": {
+    "drums": 27,
+    "bass": 48,
+    "lead": 23,
+    "harmony": 3
+  }
+}
