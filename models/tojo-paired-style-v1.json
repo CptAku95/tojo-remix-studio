@@ -1,0 +1,87 @@
+{
+  "kind": "tojo-paired-style-v1",
+  "version": 1,
+  "trainingPairs": 9,
+  "heldOut": "Spin (not present in input)",
+  "method": "Track-level paired descriptive statistics and regularized one-feature tempo regression selected by leave-one-out. No waveform alignment, stem isolation, or neural network. Beat estimates may have octave ambiguity.",
+  "tempo": {
+    "validPairs": 8,
+    "defaultBpm": 155.3,
+    "slope": 0.40574370230309015,
+    "intercept": 97.45818863120337,
+    "selected": "ridge",
+    "looMaeMedian": 17.15,
+    "looMaeRidge": 8.673956301771504,
+    "minBpm": 139.9,
+    "maxBpm": 179.5
+  },
+  "targetMetrics": {
+    "rmsDb": -13.42,
+    "crestDb": 13.17,
+    "sideMidDb": -8.53,
+    "dynamicRange4sDb": 2.66
+  },
+  "medianPairedDeltas": {
+    "rmsDb": -3.84,
+    "crestDb": 1.96,
+    "sideMidDb": 0.48,
+    "dynamicRange4sDb": 0.04
+  },
+  "targetBandEnergyShare": [
+    0.43002384253450904,
+    0.16604308093622608,
+    0.18740459372486,
+    0.1679288040364043,
+    0.04859967876800059
+  ],
+  "medianBandEnergyRatio": [
+    1.7435332097489344,
+    0.9327432929344351,
+    0.6725554029021981,
+    0.7673797214287076,
+    1.3904217895818387
+  ],
+  "beatSubdivisionOnsetShareMean": [
+    [
+      0.5550125,
+      0.1036625,
+      0.2396625,
+      0.101675
+    ],
+    [
+      0.33845,
+      0.1872375,
+      0.2993375,
+      0.1749875
+    ],
+    [
+      0.2822375,
+      0.252775,
+      0.2619125,
+      0.20305
+    ],
+    [
+      0.2673125,
+      0.24055,
+      0.258375,
+      0.2337375
+    ],
+    [
+      0.3023125,
+      0.2015625,
+      0.286825,
+      0.2093125
+    ]
+  ],
+  "titles": [
+    "Sono Chi no Sadame",
+    "Bloody Stream",
+    "Stand Proud",
+    "Chase",
+    "Fighting Gold",
+    "Uragirimono no Requiem",
+    "Stone Ocean",
+    "Heaven's Falling Down",
+    "I Really Want to Stay at Your House"
+  ]
+}
