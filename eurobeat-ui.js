@@ -6,15 +6,16 @@ import {planArrangement,renderArrangement,peakGuard} from "./eurobeat-engine.js?
 import {pairedTempo,pairedAccents,pairedGains} from "./paired-style.js?v=1";
 import {applyAudioStyle} from "./audio-style.js?v=1";
 import {applyLearnedGroove} from "./learned-groove.js?v=1";
-import {builtinBank,SoundBank} from "./soundbank.js?v=048";
+import {builtinBank,SoundBank,eventKind,pitched} from "./soundbank.js?v=049";
+import {catalog,openSourceZip,importCatalogSample} from "./soundbank-catalog.js?v=049";
 const $=id=>document.getElementById(id);
-const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebPitch","ebPitchModel","ebPitchWasm","ebPitchStart","ebPitchSeconds","ebPitchGain","ebBassSource","ebRebuild","ebEngine","ebBankLoad","ebBankImport","ebBankExport","ebBankShare","ebSampleSelect","ebSamplePreview","ebSampleUse","ebBankReset","ebDrumsGain","ebBassGain","ebUpbeatGain","ebPadGain","ebBrassGain","ebFxGain","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
+const ids=["ebVocal","ebBase","ebReference","ebAnalyze","ebPitch","ebPitchModel","ebPitchWasm","ebPitchStart","ebPitchSeconds","ebPitchGain","ebBassSource","ebRebuild","ebEngine","ebBankLoad","ebBankImport","ebBankExport","ebBankShare","ebSampleSelect","ebSamplePreview","ebSampleUse","ebBankReset","ebCatalogLoad","ebCatalogSearch","ebCatalogSelect","ebCatalogAdd","ebCatalogZip","ebDrumsGain","ebBassGain","ebUpbeatGain","ebPadGain","ebBrassGain","ebFxGain","ebOriginalBpm","ebTargetBpm","ebStart","ebKey","ebChords","ebBars","ebStyle","ebPreset","ebLead","ebVGain","ebIGain","ebBaseGain","ebLowCut","ebRender"];
 let transcription=null,vocal=null,baseBlob=null,reference=null,refOffset=0,vocalName="track",busy=false,urls=[],blobs=[],vocalURL=null;
-let activeBank=null,previewUrl=null,packUrl=null,packBlob=null;
+let activeBank=null,previewUrl=null,packUrl=null,packBlob=null,sourceArchive=null;
 function invalidatePack(){if(packUrl)URL.revokeObjectURL(packUrl);packUrl=null;packBlob=null;$("ebBankDownload").hidden=true;}
-async function getBank(){if(!activeBank)activeBank=await builtinBank();return activeBank;}
+async function getBank(){if(!activeBank){const base=await builtinBank();activeBank=new SoundBank([...base.samples],base.name);}return activeBank;}
 function populateBank(bank){
- $("ebBankInfo").textContent=bank.name+" · "+bank.samples.length+" próbek WAV/FLAC";
+ $("ebBankInfo").textContent=bank.name+" · "+bank.samples.length+" lokalnych próbek WAV/FLAC/AIFF";
  $("ebSampleSelect").replaceChildren();
  for(const x of bank.samples){const option=document.createElement("option");option.value=x.id;option.textContent=x.kind+" · "+x.id+(x.root===null?"":" (MIDI "+x.root+")");$("ebSampleSelect").append(option);}
  $("ebSamplePreview").disabled=busy; $("ebSampleUse").disabled=busy;
@@ -22,11 +23,16 @@ function populateBank(bank){
 async function bankAction(action){if(busy)return;lock(true);try{await action();}catch(e){$("ebBankInfo").textContent="Błąd: "+e.message;}finally{lock(false);}}
 $("ebBankLoad").onclick=()=>bankAction(async()=>populateBank(await getBank()));
 $("ebBankImport").onchange=()=>{const f=$("ebBankImport").files[0];if(f)bankAction(async()=>{activeBank=await SoundBank.fromZip(f);invalidatePack();populateBank(activeBank);});};
-$("ebBankReset").onclick=()=>bankAction(async()=>{activeBank=await builtinBank();activeBank.overrides={};invalidatePack();populateBank(activeBank);});
-$("ebBankExport").onclick=()=>bankAction(async()=>{const bank=await getBank();populateBank(bank);if(packUrl)URL.revokeObjectURL(packUrl);packBlob=bank.exportZip();packUrl=URL.createObjectURL(packBlob);const link=$("ebBankDownload");link.href=packUrl;link.download="TOJO-SoundBank-v3.zip";link.hidden=false;});
-$("ebBankShare").onclick=async()=>{if(!packBlob||busy)return;try{const f=new File([packBlob],"TOJO-SoundBank-v3.zip",{type:"application/zip"});if(!navigator.share||(navigator.canShare&&!navigator.canShare({files:[f]})))throw Error("Użyj linku Zapisz ZIP.");await navigator.share({files:[f]});$("ebBankInfo").textContent="Menu udostępniania zakończone. Sprawdź aplikację Pliki.";}catch(e){$("ebBankInfo").textContent=e.name==="AbortError"?"Anulowano. ZIP nadal gotowy.":e.message;}};
+$("ebBankReset").onclick=()=>bankAction(async()=>{const base=await builtinBank();activeBank=new SoundBank([...base.samples],base.name);invalidatePack();populateBank(activeBank);});
+$("ebBankExport").onclick=()=>bankAction(async()=>{const bank=await getBank();populateBank(bank);if(packUrl)URL.revokeObjectURL(packUrl);packBlob=bank.exportZip();packUrl=URL.createObjectURL(packBlob);const link=$("ebBankDownload");link.href=packUrl;link.download="TOJO-SoundBank-v3.1.zip";link.hidden=false;});
+$("ebBankShare").onclick=async()=>{if(!packBlob||busy)return;try{const f=new File([packBlob],"TOJO-SoundBank-v3.1.zip",{type:"application/zip"});if(!navigator.share||(navigator.canShare&&!navigator.canShare({files:[f]})))throw Error("Użyj linku Zapisz ZIP.");await navigator.share({files:[f]});$("ebBankInfo").textContent="Menu udostępniania zakończone. Sprawdź aplikację Pliki.";}catch(e){$("ebBankInfo").textContent=e.name==="AbortError"?"Anulowano. ZIP nadal gotowy.":e.message;}};
 $("ebSamplePreview").onclick=()=>bankAction(async()=>{const bank=await getBank();if(!$("ebSampleSelect").value)populateBank(bank);if(previewUrl)URL.revokeObjectURL(previewUrl);previewUrl=URL.createObjectURL(bank.preview($("ebSampleSelect").value));$("ebSampleAudio").src=previewUrl;$("ebSampleAudio").hidden=false;});
-$("ebSampleUse").onclick=()=>bankAction(async()=>{const bank=await getBank(),x=bank.samples.find(x=>x.id===$("ebSampleSelect").value);if(!x)return;bank.overrides[x.kind]=x.id;$("ebBankInfo").textContent="Ustawiono: "+(x.family||x.id)+(["fm","brass","pluck","pad","bell","tom"].includes(x.kind)?" · automatyczny dobór nuty":"");});
+$("ebSampleUse").onclick=()=>bankAction(async()=>{const bank=await getBank(),x=bank.samples.find(x=>x.id===$("ebSampleSelect").value);if(!x)return;const role=eventKind(x.kind);if(!role){$("ebBankInfo").textContent="Pętle: odsłuch i eksport, jeszcze bez automatycznego dopasowania BPM.";return;}bank.overrides[role]=x.id;$("ebBankInfo").textContent="Ustawiono "+role+": "+(x.family||x.id)+(pitched.has(x.kind)?" · automatyczny dobór nuty":"");});
+function showCatalog(){const q=$("ebCatalogSearch").value.trim().toLowerCase(),list=$("ebCatalogSelect");list.replaceChildren();for(const x of catalog){const label=x.kind+" · "+x.path.split("/").at(-1);if(q&&!label.toLowerCase().includes(q)&&!x.family.toLowerCase().includes(q))continue;const o=document.createElement("option");o.value=x.id;o.textContent=label;list.append(o);}$("ebCatalogInfo").textContent=list.options.length+" pozycji katalogu · audio pobierane wyłącznie na żądanie.";}
+$("ebCatalogLoad").onclick=()=>bankAction(async()=>{showCatalog();});
+$("ebCatalogSearch").oninput=showCatalog;
+$("ebCatalogZip").onchange=()=>bankAction(async()=>{const f=$("ebCatalogZip").files[0];if(f){sourceArchive=await openSourceZip(f);$("ebCatalogInfo").textContent="Archiwum lokalne: "+sourceArchive.count+" wpisów.";showCatalog();}});
+$("ebCatalogAdd").onclick=()=>bankAction(async()=>{const id=$("ebCatalogSelect").value;if(!id)throw Error("Wybierz próbkę");const bank=await getBank();try{const result=await importCatalogSample(bank,id,sourceArchive,(n,total)=>{$("ebCatalogInfo").textContent="Import "+n+"/"+total;});$("ebCatalogInfo").textContent="Dodano "+result.added+" próbek. Odsłuchaj lub wybierz w SoundBank."; }finally{invalidatePack();populateBank(bank);$("ebSampleSelect").value=id;}});
 function say(s){$("ebStatus").textContent=s;$("ebSourceStatus").textContent=s;}
 function enable(){for(const id of ids)$(id).disabled=busy;$("ebBankShare").disabled=busy||!packBlob;$("ebAnalyze").disabled=busy||!vocal;$("ebBase").disabled=busy||!vocal;$("ebRender").disabled=busy||!vocal||!baseBlob;$("ebAnalyze").disabled=busy||!vocal||(!baseBlob&&!reference);$("ebPitch").disabled=busy||!baseBlob;}
 function progress(p){$("ebProgress").value=p;$("ebPitchProgress").value=p;}

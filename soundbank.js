@@ -1,19 +1,26 @@
 // Local sample bank; original recordings, no network requests during rendering.
 const SR=44100,DECODE_CACHE_BYTES=48*1024*1024;
-const pitched=new Set(["fm","brass","pluck","pad","bell"]);
-const kinds=new Set(["kick","snare","clap","closed","open","crash","tom",...pitched]);
+export const pitched=new Set(["fm","brass","pluck","pad","bell","lead","supersaw","arp","guitar","bass-guitar","orchestral-hit"]);
+const kinds=new Set(["kick","snare","clap","closed","open","crash","tom","ride","rim","percussion","fx","riser","sweep","guitar-fx","vocal-fx","loop",...pitched]);
+export const eventKind=kind=>({lead:"brass",supersaw:"brass",guitar:"brass","orchestral-hit":"brass",arp:"pluck","bass-guitar":"fm",ride:"open",rim:"snare",percussion:"tom",fx:"crash",riser:"crash",sweep:"crash","guitar-fx":"crash","vocal-fx":"crash",loop:null})[kind]??(kind==="loop"?null:kind);
 const log=s=>window.dispatchEvent(new CustomEvent("tojo-diagnostic",{detail:"SoundBank: "+s}));
 const bytes64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 function to64(a){let s="";for(let i=0;i<a.length;i+=16384)s+=String.fromCharCode(...a.subarray(i,i+16384));return btoa(s);}
-const valid=(a,f)=>a.length>44&&(f==="wav"?String.fromCharCode(...a.subarray(0,4))==="RIFF"&&String.fromCharCode(...a.subarray(8,12))==="WAVE":f==="flac"&&String.fromCharCode(...a.subarray(0,4))==="fLaC");
-export function selectSample(samples,kind,pitch,preset="classic",overrides={}){
- let list=samples.filter(x=>x.kind===kind);if(!list.length)return null;
- const tonal=pitched.has(kind)||kind==="tom";
- const pick=list.find(x=>x.id===overrides[kind]);if(pick&&!tonal)return pick;
+const valid=(a,f)=>a.length>44&&(f==="wav"?String.fromCharCode(...a.subarray(0,4))==="RIFF"&&String.fromCharCode(...a.subarray(8,12))==="WAVE":f==="flac"?String.fromCharCode(...a.subarray(0,4))==="fLaC":f==="aiff"&&String.fromCharCode(...a.subarray(0,4))==="FORM"&&["AIFF","AIFC"].includes(String.fromCharCode(...a.subarray(8,12))));
+export function selectSample(samples,kind,pitch,preset="classic",overrides={},velocity=.7,time=0){
+ const pick=samples.find(x=>x.id===overrides[kind]&&eventKind(x.kind)===kind);
+ const target=pick?.kind||kind, tonal=pitched.has(target)||target==="tom";
+ let list=samples.filter(x=>x.kind===target);if(!list.length)return null;
+ if(pick&&!tonal&&!pick.variantGroup)return pick;
  const melodic={fm:"tx81z-lately",brass:"dx7-brass",pluck:"surge-bass-lead"};
- const preferred=pick?(pick.family||"legacy"):melodic[kind]||(tonal&&kind!=="tom"?"legacy":preset==="dark"?"fsa-distkit":preset==="race"?"fsa-x0xproc1":"tr909");
+ const preferred=pick?(pick.family||"legacy"):melodic[kind]||(tonal&&target!=="tom"?"legacy":preset==="dark"?"fsa-distkit":preset==="race"?"fsa-x0xproc1":"tr909");
  const family=list.filter(x=>(x.family||"legacy")===preferred);if(family.length)list=family;
- if(tonal)return list.reduce((a,b)=>Math.abs((b.root??pitch)-pitch)<Math.abs((a.root??pitch)-pitch)?b:a);
+ if(pick?.variantGroup){const variants=list.filter(x=>x.variantGroup===pick.variantGroup);if(variants.length)list=variants;}
+ if(tonal){const closest=Math.min(...list.map(x=>Math.abs((x.root??pitch)-pitch)));list=list.filter(x=>Math.abs((x.root??pitch)-pitch)===closest);}
+ const layers=[...new Set(list.map(x=>x.velocityLayer).filter(Number.isFinite))].sort((a,b)=>a-b);
+ if(layers.length){const layer=layers[Math.round(Math.max(0,Math.min(1,velocity))*(layers.length-1))];list=list.filter(x=>x.velocityLayer===layer);}
+ if(list.some(x=>Number.isFinite(x.roundRobin)))return list[Math.floor(Math.abs(time)*997)%list.length];
+ if(tonal||pick)return list[0];
  return preset==="race"&&list.length>1?list[1]:list[0];
 }
 export function addSample(bus,e,sample,offset,length){
@@ -26,7 +33,7 @@ export class SoundBank{
  constructor(samples,name="TOJO SoundBank v1"){
   if(!Array.isArray(samples)||!samples.length)throw Error("Nieprawidłowa liczba próbek");
   const seen=new Set();
-  for(const x of samples){if(!x||typeof x.id!=="string"||!x.id||seen.has(x.id)||!kinds.has(x.kind)||!["wav","flac"].includes(x.format)||typeof x.data!=="string"||(pitched.has(x.kind)&&(!Number.isFinite(x.root)||x.root<0||x.root>127)))throw Error("Nieprawidłowy wpis biblioteki");seen.add(x.id);}
+  for(const x of samples){if(!x||typeof x.id!=="string"||!x.id||seen.has(x.id)||!kinds.has(x.kind)||!["wav","flac","aiff"].includes(x.format)||typeof x.data!=="string"||(pitched.has(x.kind)&&(!Number.isFinite(x.root)||x.root<0||x.root>127)))throw Error("Nieprawidłowy wpis biblioteki");seen.add(x.id);}
   this.samples=samples;this.name=name;this.cache=new Map();this.cacheSizes=new Map();this.cacheBytes=0;this.overrides={};this.ctx=null;this.failures=new Set();
  }
  async decode(x){
@@ -44,11 +51,12 @@ export class SoundBank{
   })().catch(e=>{if(!this.failures.has(x.id)){this.failures.add(x.id);log(x.id+" - "+e.message);}return null;}));return this.cache.get(x.id);
  }
  async playEvent(bus,e,offset,length,preset){
-  const x=selectSample(this.samples,e.kind,e.pitch,preset,this.overrides);if(!x)return false;
-  const sample=await this.decode(x);if(!sample)return false;const result=addSample(bus,e,sample,offset,length);
+  const x=selectSample(this.samples,e.kind,e.pitch,preset,this.overrides,e.velocity,e.time);if(!x)return false;
+  const sample=await this.decode(x);if(!sample)return false;let event={...e,kind:x.kind};if(x.kind==="riser"&&offset>0){const n=Math.min(offset,Math.round(SR*2),sample.channels[0].length);offset-=n;event.duration=n/SR;}const result=addSample(bus,event,sample,offset,length);
   if(e.kind==="clap"){const snare=selectSample(this.samples,"snare",0,preset,this.overrides);if(snare){const d=await this.decode(snare);if(d)addSample(bus,{...e,kind:"snare",velocity:e.velocity*.58},d,offset,length);}}return result;
  }
- preview(id){const x=this.samples.find(x=>x.id===id);if(!x)throw Error("Brak próbki");return new Blob([bytes64(x.data)],{type:x.format==="wav"?"audio/wav":"audio/flac"});}
+ addSamples(samples){const seen=new Set(this.samples.map(x=>x.id));const fresh=samples.filter(x=>!seen.has(x.id));if(!fresh.length)return 0;const validated=new SoundBank(fresh);for(const x of validated.samples)this.samples.push(x);return fresh.length;}
+ preview(id){const x=this.samples.find(x=>x.id===id);if(!x)throw Error("Brak próbki");return new Blob([bytes64(x.data)],{type:x.format==="wav"?"audio/wav":x.format==="aiff"?"audio/aiff":"audio/flac"});}
  exportZip(){
   const manifest={version:1,name:this.name,samples:this.samples.map(({data,...x},i)=>({...x,file:"samples/"+String(i+1).padStart(3,"0")+"."+x.format}))};
   const enc=new TextEncoder(),entries=[{name:"manifest.json",data:enc.encode(JSON.stringify(manifest,null,2))}];
@@ -63,7 +71,7 @@ export class SoundBank{
 }
 let builtinPromise=null;
 export function builtinBank(){
- if(!builtinPromise)builtinPromise=(async()=>{const all=[];for(const load of [()=>import("./soundbank/bass.js"),()=>import("./soundbank/bell.js"),()=>import("./soundbank/brass.js"),()=>import("./soundbank/drums.js"),()=>import("./soundbank/exp-dx7-brass-0.js"),()=>import("./soundbank/exp-dx7-brass-more-0.js"),()=>import("./soundbank/exp-dx7-brass-more-1.js"),()=>import("./soundbank/exp-dx7-brass-more-2.js"),()=>import("./soundbank/exp-fsa-a-0.js"),()=>import("./soundbank/exp-fsa-a-1.js"),()=>import("./soundbank/exp-fsa-a-2.js"),()=>import("./soundbank/exp-fsa-a-3.js"),()=>import("./soundbank/exp-fsa-a-4.js"),()=>import("./soundbank/exp-fsa-b-0.js"),()=>import("./soundbank/exp-fsa-b-1.js"),()=>import("./soundbank/exp-fsa-b-2.js"),()=>import("./soundbank/exp-fsa-c-0.js"),()=>import("./soundbank/exp-fsa-c-1.js"),()=>import("./soundbank/exp-fsa-c-2.js"),()=>import("./soundbank/exp-fsa-c-3.js"),()=>import("./soundbank/exp-fsa-d-0.js"),()=>import("./soundbank/exp-fsa-d-1.js"),()=>import("./soundbank/exp-fsa-d-2.js"),()=>import("./soundbank/exp-fsa-d-3.js"),()=>import("./soundbank/exp-retro-0.js"),()=>import("./soundbank/exp-retro-1.js"),()=>import("./soundbank/exp-surge-bass-lead-0.js"),()=>import("./soundbank/exp-surge-bass-lead-1.js"),()=>import("./soundbank/exp-surge-bass-lead-more-0.js"),()=>import("./soundbank/exp-surge-bass-lead-more-1.js"),()=>import("./soundbank/exp-surge-bass-lead-more-2.js"),()=>import("./soundbank/exp-surge-full-0.js"),()=>import("./soundbank/exp-surge-full-1.js"),()=>import("./soundbank/exp-surge-full-2.js"),()=>import("./soundbank/exp-surge-full-3.js"),()=>import("./soundbank/exp-surge-full-4.js"),()=>import("./soundbank/exp-tr909-0.js"),()=>import("./soundbank/exp-tr909-1.js"),()=>import("./soundbank/exp-tx81z-lately-0.js"),()=>import("./soundbank/exp-tx81z-lately-1.js"),()=>import("./soundbank/exp-tx81z-lately-2.js"),()=>import("./soundbank/exp-tx81z-more-0.js"),()=>import("./soundbank/exp-tx81z-more-1.js"),()=>import("./soundbank/exp-tx81z-more-2.js"),()=>import("./soundbank/exp-tx81z-more-3.js"),()=>import("./soundbank/exp-tx81z-more-4.js"),()=>import("./soundbank/exp-tx81z-more-5.js"),()=>import("./soundbank/exp-tx81z-more-6.js"),()=>import("./soundbank/exp-tx81z-more-7.js"),()=>import("./soundbank/keys.js"),()=>import("./soundbank/pad.js"),()=>import("./soundbank/exp-dx7-bass-0.js"),()=>import("./soundbank/exp-dx7-bass-1.js"),()=>import("./soundbank/exp-dx7-bass-2.js"),()=>import("./soundbank/exp-dx7-bass-3.js"),()=>import("./soundbank/exp-dx7-bass-4.js"),()=>import("./soundbank/exp-dx7-bass-5.js"),()=>import("./soundbank/exp-zyn-bass-0.js"),()=>import("./soundbank/exp-zyn-bass-1.js")]){const group=await load();all.push(...group.default);}const bank=new SoundBank(all,"TOJO SoundBank 3.0");log("Biblioteka: "+all.length+" próbek WAV/FLAC");return bank;})().catch(e=>{builtinPromise=null;throw e;});return builtinPromise;
+ if(!builtinPromise)builtinPromise=(async()=>{const all=[];for(const load of [()=>import("./soundbank/bass.js"),()=>import("./soundbank/bell.js"),()=>import("./soundbank/brass.js"),()=>import("./soundbank/drums.js"),()=>import("./soundbank/exp-dx7-brass-0.js"),()=>import("./soundbank/exp-dx7-brass-more-0.js"),()=>import("./soundbank/exp-dx7-brass-more-1.js"),()=>import("./soundbank/exp-dx7-brass-more-2.js"),()=>import("./soundbank/exp-fsa-a-0.js"),()=>import("./soundbank/exp-fsa-a-1.js"),()=>import("./soundbank/exp-fsa-a-2.js"),()=>import("./soundbank/exp-fsa-a-3.js"),()=>import("./soundbank/exp-fsa-a-4.js"),()=>import("./soundbank/exp-fsa-b-0.js"),()=>import("./soundbank/exp-fsa-b-1.js"),()=>import("./soundbank/exp-fsa-b-2.js"),()=>import("./soundbank/exp-fsa-c-0.js"),()=>import("./soundbank/exp-fsa-c-1.js"),()=>import("./soundbank/exp-fsa-c-2.js"),()=>import("./soundbank/exp-fsa-c-3.js"),()=>import("./soundbank/exp-fsa-d-0.js"),()=>import("./soundbank/exp-fsa-d-1.js"),()=>import("./soundbank/exp-fsa-d-2.js"),()=>import("./soundbank/exp-fsa-d-3.js"),()=>import("./soundbank/exp-retro-0.js"),()=>import("./soundbank/exp-retro-1.js"),()=>import("./soundbank/exp-surge-bass-lead-0.js"),()=>import("./soundbank/exp-surge-bass-lead-1.js"),()=>import("./soundbank/exp-surge-bass-lead-more-0.js"),()=>import("./soundbank/exp-surge-bass-lead-more-1.js"),()=>import("./soundbank/exp-surge-bass-lead-more-2.js"),()=>import("./soundbank/exp-surge-full-0.js"),()=>import("./soundbank/exp-surge-full-1.js"),()=>import("./soundbank/exp-surge-full-2.js"),()=>import("./soundbank/exp-surge-full-3.js"),()=>import("./soundbank/exp-surge-full-4.js"),()=>import("./soundbank/exp-tr909-0.js"),()=>import("./soundbank/exp-tr909-1.js"),()=>import("./soundbank/exp-tx81z-lately-0.js"),()=>import("./soundbank/exp-tx81z-lately-1.js"),()=>import("./soundbank/exp-tx81z-lately-2.js"),()=>import("./soundbank/exp-tx81z-more-0.js"),()=>import("./soundbank/exp-tx81z-more-1.js"),()=>import("./soundbank/exp-tx81z-more-2.js"),()=>import("./soundbank/exp-tx81z-more-3.js"),()=>import("./soundbank/exp-tx81z-more-4.js"),()=>import("./soundbank/exp-tx81z-more-5.js"),()=>import("./soundbank/exp-tx81z-more-6.js"),()=>import("./soundbank/exp-tx81z-more-7.js"),()=>import("./soundbank/keys.js"),()=>import("./soundbank/pad.js"),()=>import("./soundbank/exp-dx7-bass-0.js"),()=>import("./soundbank/exp-dx7-bass-1.js"),()=>import("./soundbank/exp-dx7-bass-2.js"),()=>import("./soundbank/exp-dx7-bass-3.js"),()=>import("./soundbank/exp-dx7-bass-4.js"),()=>import("./soundbank/exp-dx7-bass-5.js"),()=>import("./soundbank/exp-zyn-bass-0.js"),()=>import("./soundbank/exp-zyn-bass-1.js"),()=>import("./soundbank/stargate-starter.js"),()=>import("./soundbank/exp-fifths-lead.js")]){const group=await load();all.push(...group.default);}const bank=new SoundBank(all,"TOJO SoundBank 3.1");log("Biblioteka: "+all.length+" próbek WAV/FLAC/AIFF");return bank;})().catch(e=>{builtinPromise=null;throw e;});return builtinPromise;
 }
 const table=Uint32Array.from({length:256},(_,i)=>{let x=i;for(let k=0;k<8;k++)x=x&1?0xedb88320^(x>>>1):x>>>1;return x>>>0;});
 function crc32(a){let c=0xffffffff;for(const v of a)c=table[(c^v)&255]^(c>>>8);return (c^0xffffffff)>>>0;}

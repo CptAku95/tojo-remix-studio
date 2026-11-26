@@ -1,5 +1,5 @@
 import {renderArrangement,peakGuard} from "./eurobeat-engine.js?v=040";
-import {builtinBank} from "./soundbank.js?v=040";
+import {builtinBank} from "./soundbank.js?v=049";
 import {encodeWav} from "./wav.js";
 const SR=44100;
 function drumKind(p){if(p===35||p===36)return "kick";if([37,38,39,40].includes(p))return "clap";if([42,44].includes(p))return "closed";if(p===46)return "open";if([49,51,52,53,55,57,59].includes(p))return "crash";return "tom"}
